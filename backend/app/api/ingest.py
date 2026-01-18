@@ -1,25 +1,58 @@
-from fastapi import APIRouter, UploadFile
-import pdfplumber
+from fastapi import APIRouter, UploadFile, File, HTTPException
 
+from app.services.file_loader import extract_text_from_file
 from app.services.chunker import chunk_text
-from backend.app.services.embeddings import embed_texts
-from app.vectorstore.faiss_store import FAISSStore
-
+from app.services.embeddings import embed_texts
+from app.vectorstore.faiss_store import get_store
 
 router = APIRouter()
-store = FAISSStore(dim=384)
 
-@router.post("/ingest")
-async def ingest(file: UploadFile):
-    text = ""
-    with pdfplumber.open(file.file) as pdf:
-        for page in pdf.pages:
-            text += page.extract_text() + "\n"
 
-    chunks = chunk_text(text)
-    embeddings = embed_texts(chunks)
+@router.post("/ingest/file")
+def ingest_file(file: UploadFile = File(...)):
+    try:
+        documents = extract_text_from_file(file)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
-    metadata = [{"text": c, "source": file.filename} for c in chunks]
-    store.add(embeddings, metadata)
+    if not documents:
+        raise HTTPException(status_code=400, detail="No text found in file")
 
-    return {"status": "ingested", "chunks": len(chunks)}
+    all_chunks = []
+    all_metadata = []
+
+    # -------- PAGE-AWARE CHUNKING --------
+    for doc in documents:
+        text = doc["text"]
+        page = doc["page"]
+        source = doc["source"]
+
+        chunks = chunk_text(text)
+
+        for chunk in chunks:
+            all_chunks.append(chunk)
+            all_metadata.append({
+                "source": source,
+                "page": page,
+                "text": chunk,  # store text explicitly for citations
+            })
+
+    if not all_chunks:
+        raise HTTPException(status_code=400, detail="No chunks generated")
+
+    # -------- EMBEDDINGS --------
+    embeddings = embed_texts(all_chunks)
+
+    # -------- STORE --------
+    store = get_store()
+    store.add(
+        embeddings=embeddings,
+        metadatas=all_metadata,
+    )
+
+    return {
+        "status": "ok",
+        "filename": file.filename,
+        "pages": len(set(m["page"] for m in all_metadata if m["page"])),
+        "chunks": len(all_chunks),
+    }

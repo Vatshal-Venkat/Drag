@@ -1,10 +1,5 @@
 fastapi
 uvicorn
 python-multipart
-pydantic
-numpy
-faiss-cpu
-sentence-transformers
-torch
-transformers
-pdfplumber
+pypdf
+python-docx

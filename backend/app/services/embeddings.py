@@ -1,12 +1,11 @@
-from sentence_transformers import SentenceTransformer
-import torch
+from openai import OpenAI
+from app.config import OPENAI_API_KEY, EMBEDDING_MODEL
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
+client = OpenAI(api_key=OPENAI_API_KEY)
 
-model = SentenceTransformer(
-    "sentence-transformers/all-MiniLM-L6-v2",
-    device=device
-)
-
-def embed_texts(texts: list[str]):
-    return model.encode(texts, convert_to_numpy=True)
+def embed_texts(texts: list[str]) -> list[list[float]]:
+    response = client.embeddings.create(
+        model=EMBEDDING_MODEL,
+        input=texts,
+    )
+    return [item.embedding for item in response.data]
