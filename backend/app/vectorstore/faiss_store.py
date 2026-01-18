@@ -5,6 +5,8 @@ import pickle
 from typing import List, Dict
 
 
+
+
 class FAISSStore:
     def __init__(self, dim: int, path: str = "data"):
         self.dim = dim
