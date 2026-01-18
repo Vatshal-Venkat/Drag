@@ -1,10 +1,17 @@
 # app/config.py
-import os
-from dotenv import load_dotenv
 
-load_dotenv()
+# -------- LLM PROVIDER --------
+# options: "ollama", "gemini"
+LLM_PROVIDER = "ollama"
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-large")
-LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4.1-mini")
-DATA_DIR = os.getenv("DATA_DIR", "data")
+# -------- OLLAMA CONFIG --------
+OLLAMA_BASE_URL = "http://localhost:11434"
+OLLAMA_MODEL = "llama3"
+
+# -------- GEMINI CONFIG --------
+GEMINI_API_KEY = ""  # add later when needed
+GEMINI_MODEL = "models/gemini-1.5-flash"
+
+# -------- RAG / LLM SETTINGS --------
+LLM_TEMPERATURE = 0.2
+LLM_TIMEOUT = 60

@@ -3,3 +3,5 @@ uvicorn
 python-multipart
 pypdf
 python-docx
+google-generativeai
+sentence-transformers

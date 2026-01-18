@@ -33,7 +33,6 @@ class FAISSStore:
 
         start_id = len(self.metadata)
 
-        # assign stable ids
         for i, meta in enumerate(metadatas):
             meta["id"] = start_id + i
 
@@ -59,10 +58,7 @@ class FAISSStore:
             if idx < len(self.metadata):
                 item = dict(self.metadata[idx])
                 item["distance"] = float(dist)
-
-                # convert distance → confidence (lower distance = higher confidence)
                 item["confidence"] = round(1 / (1 + dist), 4)
-
                 results.append(item)
 
         return results
@@ -71,3 +67,20 @@ class FAISSStore:
         faiss.write_index(self.index, self.index_path)
         with open(self.meta_path, "wb") as f:
             pickle.dump(self.metadata, f)
+
+
+# ---------- GLOBAL STORE SINGLETON ----------
+
+_store = None
+
+
+def get_store():
+    """
+    Returns a singleton FAISSStore instance.
+    """
+    global _store
+
+    if _store is None:
+        _store = FAISSStore(dim=384)
+
+    return _store
