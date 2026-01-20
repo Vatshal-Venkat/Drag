@@ -11,10 +11,25 @@ export default function ChatBox() {
   const [sources, setSources] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  const [documents, setDocuments] = useState([]); // all uploaded docs
+  const [activeDocumentId, setActiveDocumentId] = useState("");
+
   const abortControllerRef = useRef(null);
+
+  function handleIngest(docId) {
+    setDocuments((prev) =>
+      prev.includes(docId) ? prev : [...prev, docId]
+    );
+    setActiveDocumentId(docId); // auto-select latest
+  }
 
   async function sendMessage() {
     if (!input.trim() || loading) return;
+
+    if (!activeDocumentId) {
+      alert("Please select a document first.");
+      return;
+    }
 
     const question = input;
     setInput("");
@@ -37,6 +52,7 @@ export default function ChatBox() {
         body: JSON.stringify({
           query: question,
           top_k: 5,
+          document_id: activeDocumentId,
         }),
         signal: abortControllerRef.current.signal,
       });
@@ -46,14 +62,8 @@ export default function ChatBox() {
       return;
     }
 
-    if (!response.ok) {
+    if (!response.ok || !response.body) {
       console.error("Backend error:", response.status);
-      setLoading(false);
-      return;
-    }
-
-    if (!response.body) {
-      console.error("No response body (stream failed)");
       setLoading(false);
       return;
     }
@@ -75,7 +85,6 @@ export default function ChatBox() {
           if (!event.startsWith("data:")) continue;
 
           const payload = event.replace("data:", "").trim();
-
           if (payload === "[DONE]") {
             setLoading(false);
             return;
@@ -83,33 +92,23 @@ export default function ChatBox() {
 
           const parsed = JSON.parse(payload);
 
-          // 🔹 TOKEN STREAM
           if (parsed.type === "token") {
             assistantText += parsed.value;
-
             setMessages((prev) => {
               const updated = [...prev];
-              updated[updated.length - 1] = {
-                ...updated[updated.length - 1],
-                content: assistantText,
-              };
+              updated[updated.length - 1].content = assistantText;
               return updated;
             });
           }
 
-          // 🔹 SENTENCE-LEVEL CITATIONS
           if (parsed.type === "citations") {
             setMessages((prev) => {
               const updated = [...prev];
-              updated[updated.length - 1] = {
-                ...updated[updated.length - 1],
-                citations: parsed.value,
-              };
+              updated[updated.length - 1].citations = parsed.value;
               return updated;
             });
           }
 
-          // 🔹 SOURCES
           if (parsed.type === "sources") {
             setSources(parsed.value || []);
           }
@@ -126,7 +125,29 @@ export default function ChatBox() {
 
   return (
     <div>
-      <FileIngest />
+      <FileIngest onIngest={handleIngest} />
+
+      {/* 🔽 Document switcher */}
+      {documents.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ fontSize: 12, marginRight: 8 }}>
+            Active document:
+          </label>
+          <select
+            value={activeDocumentId}
+            onChange={(e) => setActiveDocumentId(e.target.value)}
+          >
+            <option value="" disabled>
+              Select document
+            </option>
+            {documents.map((doc) => (
+              <option key={doc} value={doc}>
+                {doc}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div style={{ border: "1px solid #ccc", padding: 16, minHeight: 300 }}>
         {messages.map((m, i) => (

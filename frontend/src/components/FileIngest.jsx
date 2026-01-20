@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-export default function FileIngest() {
+export default function FileIngest({ onIngest }) {
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
@@ -23,7 +23,11 @@ export default function FileIngest() {
       if (!res.ok) throw new Error("Upload failed");
 
       const data = await res.json();
-      setStatus(`Ingested ${data.chunks || 0} chunks`);
+
+      // 🔑 send document_id to parent
+      onIngest(data.document_id);
+
+      setStatus(`Ingested ${data.chunks} chunks`);
     } catch (err) {
       console.error(err);
       setStatus("Failed to ingest file");
@@ -34,13 +38,7 @@ export default function FileIngest() {
   }
 
   return (
-    <div
-      style={{
-        border: "1px dashed #aaa",
-        padding: 12,
-        marginBottom: 12,
-      }}
-    >
+    <div style={{ border: "1px dashed #aaa", padding: 12, marginBottom: 12 }}>
       <input
         type="file"
         accept=".pdf,.doc,.docx"
