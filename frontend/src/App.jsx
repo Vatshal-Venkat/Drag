@@ -1,5 +1,5 @@
-import RagChat from "./pages/RagChat";
+import ChatBox from "./components/ChatBox";
 
 export default function App() {
-  return <RagChat />;
+  return <ChatBox />;
 }

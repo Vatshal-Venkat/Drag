@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Message from "./Message";
 import SourceCitations from "./SourceCitations";
 import FileIngest from "./FileIngest";
@@ -11,31 +11,42 @@ export default function ChatBox() {
   const [sources, setSources] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const [documents, setDocuments] = useState([]); // all uploaded docs
+  const [documents, setDocuments] = useState([]);
   const [activeDocumentId, setActiveDocumentId] = useState("");
 
+  const endRef = useRef(null);
   const abortControllerRef = useRef(null);
 
+  /* ============================
+     Auto-scroll (session continuity)
+     ============================ */
+  useEffect(() => {
+    endRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "end",
+    });
+  }, [messages, loading]);
+
+  /* ============================
+     Document ingest handler
+     ============================ */
   function handleIngest(docId) {
-    setDocuments((prev) =>
-      prev.includes(docId) ? prev : [...prev, docId]
-    );
-    setActiveDocumentId(docId); // auto-select latest
+    setDocuments((prev) => (prev.includes(docId) ? prev : [...prev, docId]));
+    setActiveDocumentId(docId);
   }
 
+  /* ============================
+     Message send
+     ============================ */
   async function sendMessage() {
-    if (!input.trim() || loading) return;
-
-    if (!activeDocumentId) {
-      alert("Please select a document first.");
-      return;
-    }
+    if (!input.trim() || loading || !activeDocumentId) return;
 
     const question = input;
     setInput("");
     setSources([]);
     setLoading(true);
 
+    /* Push user message + assistant shell */
     setMessages((prev) => [
       ...prev,
       { role: "user", content: question },
@@ -44,31 +55,18 @@ export default function ChatBox() {
 
     abortControllerRef.current = new AbortController();
 
-    let response;
-    try {
-      response = await fetch("http://127.0.0.1:8000/query/stream", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          query: question,
-          top_k: 5,
-          document_id: activeDocumentId,
-        }),
-        signal: abortControllerRef.current.signal,
-      });
-    } catch (err) {
-      console.error("Network error:", err);
-      setLoading(false);
-      return;
-    }
+    const res = await fetch("http://127.0.0.1:8000/query/stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: question,
+        top_k: 5,
+        document_id: activeDocumentId,
+      }),
+      signal: abortControllerRef.current.signal,
+    });
 
-    if (!response.ok || !response.body) {
-      console.error("Backend error:", response.status);
-      setLoading(false);
-      return;
-    }
-
-    const reader = response.body.getReader();
+    const reader = res.body.getReader();
     const decoder = new TextDecoder("utf-8");
 
     let assistantText = "";
@@ -85,6 +83,7 @@ export default function ChatBox() {
           if (!event.startsWith("data:")) continue;
 
           const payload = event.replace("data:", "").trim();
+
           if (payload === "[DONE]") {
             setLoading(false);
             return;
@@ -92,8 +91,10 @@ export default function ChatBox() {
 
           const parsed = JSON.parse(payload);
 
+          /* Token stream */
           if (parsed.type === "token") {
             assistantText += parsed.value;
+
             setMessages((prev) => {
               const updated = [...prev];
               updated[updated.length - 1].content = assistantText;
@@ -101,14 +102,16 @@ export default function ChatBox() {
             });
           }
 
+          /* Sentence-level citations */
           if (parsed.type === "citations") {
             setMessages((prev) => {
               const updated = [...prev];
-              updated[updated.length - 1].citations = parsed.value;
+              updated[updated.length - 1].citations = parsed.value || [];
               return updated;
             });
           }
 
+          /* Source metadata */
           if (parsed.type === "sources") {
             setSources(parsed.value || []);
           }
@@ -124,32 +127,43 @@ export default function ChatBox() {
   }
 
   return (
-    <div>
-      <FileIngest onIngest={handleIngest} />
+    <div className="app-shell">
+      {/* ============================
+          Header
+         ============================ */}
+      <header className="app-header">
+        <h1>RAG Accelerator</h1>
+        <p>Enterprise Knowledge Assistant</p>
+      </header>
 
-      {/* 🔽 Document switcher */}
-      {documents.length > 0 && (
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ fontSize: 12, marginRight: 8 }}>
-            Active document:
-          </label>
+      {/* ============================
+          Top utility panel
+         ============================ */}
+      <div className="top-panel">
+        <FileIngest onIngest={handleIngest} />
+
+        {documents.length > 0 && (
           <select
+            className="doc-selector"
             value={activeDocumentId}
             onChange={(e) => setActiveDocumentId(e.target.value)}
           >
             <option value="" disabled>
-              Select document
+              Select active document
             </option>
-            {documents.map((doc) => (
-              <option key={doc} value={doc}>
-                {doc}
+            {documents.map((d) => (
+              <option key={d} value={d}>
+                {d}
               </option>
             ))}
           </select>
-        </div>
-      )}
+        )}
+      </div>
 
-      <div style={{ border: "1px solid #ccc", padding: 16, minHeight: 300 }}>
+      {/* ============================
+          Chat area (conversation history)
+         ============================ */}
+      <div className="chat-area">
         {messages.map((m, i) => (
           <Message
             key={i}
@@ -158,22 +172,35 @@ export default function ChatBox() {
             citations={m.citations}
           />
         ))}
-        {loading && <p>Thinking…</p>}
+
+        {loading && (
+          <div className="thinking">
+            Analyzing…
+          </div>
+        )}
+
+        <div ref={endRef} />
       </div>
 
-      <textarea
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        rows={3}
-        style={{ width: "100%", marginTop: 12 }}
-        placeholder="Ask something…"
-        disabled={loading}
-      />
+      {/* ============================
+          Input
+         ============================ */}
+      <div className="input-bar">
+        <textarea
+          rows={2}
+          placeholder="Ask a business or technical question…"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          disabled={loading}
+        />
+        <button onClick={sendMessage} disabled={loading}>
+          Analyze
+        </button>
+      </div>
 
-      <button onClick={sendMessage} disabled={loading} style={{ marginTop: 8 }}>
-        Ask
-      </button>
-
+      {/* ============================
+          Sources
+         ============================ */}
       {sources.length > 0 && <SourceCitations sources={sources} />}
     </div>
   );

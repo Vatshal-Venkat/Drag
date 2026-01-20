@@ -1,42 +1,272 @@
-#root {
+/* ============================
+   App shell
+   ============================ */
+.app-shell {
   max-width: 1280px;
   margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  padding: 42px 36px;
+  height: 100vh;
+
+  display: grid;
+  grid-template-rows: auto auto 1fr auto auto;
+  gap: 24px;
+
+  align-content: start;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+/* ============================
+   Header
+   ============================ */
+.app-header h1 {
+  font-family: var(--font-heading);
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0;
+
+  background: linear-gradient(
+    90deg,
+    var(--accent-main),
+    #22d3ee
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.app-header p {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+  max-width: 680px;
+  line-height: 1.6;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+/* ============================
+   Top panel
+   ============================ */
+.top-panel {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 16px;
+  align-items: center;
 }
 
-.card {
-  padding: 2em;
+/* ============================
+   Chat area
+   ============================ */
+.chat-area {
+  position: relative;
+
+  background:
+    radial-gradient(
+      600px 300px at top left,
+      rgba(45, 212, 191, 0.10),
+      transparent 60%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(255,255,255,0.03),
+      rgba(255,255,255,0)
+    ),
+    var(--bg-panel);
+
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 26px;
+
+  overflow-y: auto;
+
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.02),
+    0 30px 80px rgba(0,0,0,0.65);
 }
 
-.read-the-docs {
-  color: #888;
+/* ============================
+   Messages
+   ============================ */
+.user-card {
+  margin-bottom: 18px;
+  padding: 14px 18px;
+  max-width: 70%;
+
+  background:
+    linear-gradient(
+      180deg,
+      var(--bg-panel-soft),
+      var(--bg-panel)
+    );
+
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+
+  color: var(--text-primary);
+  line-height: 1.6;
+  align-self: flex-end;
+}
+
+.ai-card {
+  margin-bottom: 28px;
+  padding: 22px 24px;
+  max-width: 92%;
+  border-radius: var(--radius-lg);
+
+  background:
+    radial-gradient(
+      500px 240px at top left,
+      var(--accent-glow),
+      transparent 65%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(255,255,255,0.04),
+      rgba(255,255,255,0)
+    ),
+    var(--bg-panel);
+
+  border: 1px solid var(--border-accent);
+
+  box-shadow:
+    0 0 0 1px rgba(45, 212, 191, 0.08),
+    0 40px 100px rgba(0,0,0,0.7);
+
+  line-height: 1.7;
+}
+
+.ai-label {
+  font-family: var(--font-heading);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent-main);
+  margin-bottom: 10px;
+}
+
+/* ============================
+   Input (Analyze button FIXED)
+   ============================ */
+.input-bar {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 14px;
+  align-items: center;
+}
+
+.input-bar textarea {
+  resize: none;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255,255,255,0.02),
+      rgba(255,255,255,0)
+    ),
+    var(--bg-panel);
+
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.input-bar textarea::placeholder {
+  color: var(--text-muted);
+}
+
+/* 🔥 Analyze button — command-grade */
+.input-bar button {
+  position: relative;
+
+  background:
+    linear-gradient(
+      135deg,
+      #1fffd7,
+      #22d3ee
+    );
+
+  color: #021e1b;
+  border: none;
+  border-radius: 999px;
+  padding: 12px 32px;
+
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+
+  box-shadow:
+    0 0 0 1px rgba(45,212,191,0.25),
+    0 12px 40px rgba(34,211,238,0.45);
+
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.input-bar button:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 0 0 1px rgba(45,212,191,0.35),
+    0 18px 60px rgba(34,211,238,0.6);
+}
+
+.input-bar button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* ============================
+   Sources
+   ============================ */
+.sources {
+  border-top: 1px dashed var(--border-subtle);
+  padding-top: 16px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+/* ============================
+   File ingest (TRON-lite vibe)
+   ============================ */
+.ingest-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ingest-select {
+  background: transparent;
+  border: 1px dashed var(--border-accent);
+  color: var(--accent-main);
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.ingest-upload {
+  background:
+    linear-gradient(
+      135deg,
+      rgba(45,212,191,0.35),
+      rgba(34,211,238,0.35)
+    );
+  border: 1px solid var(--border-accent);
+  color: var(--text-primary);
+  padding: 10px 20px;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ingest-upload:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.ingest-status {
+  font-size: 12px;
+  color: var(--text-muted);
 }

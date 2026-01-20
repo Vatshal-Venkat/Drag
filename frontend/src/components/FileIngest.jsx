@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 
 export default function FileIngest({ onIngest }) {
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const fileInputRef = useRef(null);
 
   async function uploadFile() {
     if (!file) return;
@@ -20,17 +22,11 @@ export default function FileIngest({ onIngest }) {
         body: formData,
       });
 
-      if (!res.ok) throw new Error("Upload failed");
-
       const data = await res.json();
-
-      // 🔑 send document_id to parent
       onIngest(data.document_id);
-
-      setStatus(`Ingested ${data.chunks} chunks`);
-    } catch (err) {
-      console.error(err);
-      setStatus("Failed to ingest file");
+      setStatus(`Indexed ${data.chunks} chunks`);
+    } catch {
+      setStatus("Upload failed");
     } finally {
       setLoading(false);
       setFile(null);
@@ -38,26 +34,33 @@ export default function FileIngest({ onIngest }) {
   }
 
   return (
-    <div style={{ border: "1px dashed #aaa", padding: 12, marginBottom: 12 }}>
+    <div className="ingest-box">
+      {/* Hidden native input */}
       <input
+        ref={fileInputRef}
         type="file"
         accept=".pdf,.doc,.docx"
+        style={{ display: "none" }}
         onChange={(e) => setFile(e.target.files[0])}
       />
 
+      {/* Custom trigger */}
       <button
+        className="ingest-select"
+        onClick={() => fileInputRef.current.click()}
+      >
+        {file ? file.name : "Choose File"}
+      </button>
+
+      <button
+        className="ingest-upload"
         onClick={uploadFile}
         disabled={!file || loading}
-        style={{ marginLeft: 8 }}
       >
         Upload
       </button>
 
-      {status && (
-        <p style={{ marginTop: 8, fontSize: 12, color: "#555" }}>
-          {status}
-        </p>
-      )}
+      {status && <div className="ingest-status">{status}</div>}
     </div>
   );
 }
