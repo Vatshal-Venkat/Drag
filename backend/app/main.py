@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from app.api import ingest, health, query_stream
-from backend.app.api import query_stream
+from app.api import query_stream
 from app.api import ingest
 
 app = FastAPI(title="RAG Accelerator")
