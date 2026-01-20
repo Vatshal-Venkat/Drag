@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 import json
 from typing import Any
@@ -14,22 +14,29 @@ router = APIRouter()
 
 
 def make_json_safe(obj: Any):
-    """
-    Recursively convert numpy / non-JSON-safe objects
-    (e.g., float32, int64) into native Python types.
-    """
     if isinstance(obj, dict):
         return {k: make_json_safe(v) for k, v in obj.items()}
     if isinstance(obj, list):
         return [make_json_safe(v) for v in obj]
-    if hasattr(obj, "item"):  # numpy scalar (float32, int64, etc.)
+    if hasattr(obj, "item"):
         return obj.item()
     return obj
 
 
 @router.post("/query/stream")
 def query_rag_stream(req: QueryRequest):
-    contexts = retrieve_context(req.query, req.top_k)
+
+    if not req.document_id:
+        raise HTTPException(
+            status_code=400,
+            detail="document_id is required"
+        )
+
+    contexts = retrieve_context(
+        query=req.query,
+        top_k=req.top_k,
+        document_id=req.document_id,
+    )
 
     def event_generator():
         full_answer = ""
@@ -40,28 +47,11 @@ def query_rag_stream(req: QueryRequest):
             yield f"data: {json.dumps({'type': 'token', 'value': token})}\n\n"
 
         # 2️⃣ Sentence-level citations
-        citations = generate_sentence_citations(
-            full_answer,
-            contexts,
-        )
-
+        citations = generate_sentence_citations(full_answer, contexts)
         yield f"data: {json.dumps({'type': 'citations', 'value': make_json_safe(citations)})}\n\n"
 
-        # 3️⃣ Sources (deduplicated + JSON-safe)
-        sources = {
-            c["id"]: {
-                "id": c["id"],
-                "source": c.get("source"),
-                "page": c.get("page"),
-                "confidence": c.get("confidence"),
-                "text": c.get("text"),
-            }
-            for c in contexts
-        }
-
-        safe_sources = make_json_safe(list(sources.values()))
-
-        yield f"data: {json.dumps({'type': 'sources', 'value': safe_sources})}\n\n"
+        # 3️⃣ Sources
+        yield f"data: {json.dumps({'type': 'sources', 'value': make_json_safe(contexts)})}\n\n"
 
         # 4️⃣ End
         yield "data: [DONE]\n\n"

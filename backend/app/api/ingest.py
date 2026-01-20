@@ -3,7 +3,7 @@ from fastapi import APIRouter, UploadFile, File, HTTPException
 from app.services.file_loader import extract_text_from_file
 from app.services.chunker import chunk_text
 from app.services.embeddings import embed_texts
-from app.vectorstore.faiss_store import get_store
+from app.vectorstore.store_manager import get_store_for_document
 
 router = APIRouter()
 
@@ -24,8 +24,8 @@ def ingest_file(file: UploadFile = File(...)):
     # -------- PAGE-AWARE CHUNKING --------
     for doc in documents:
         text = doc["text"]
-        page = doc["page"]
-        source = doc["source"]
+        page = doc.get("page")
+        source = file.filename
 
         chunks = chunk_text(text)
 
@@ -34,7 +34,7 @@ def ingest_file(file: UploadFile = File(...)):
             all_metadata.append({
                 "source": source,
                 "page": page,
-                "text": chunk,  # store text explicitly for citations
+                "text": chunk,
             })
 
     if not all_chunks:
@@ -43,16 +43,17 @@ def ingest_file(file: UploadFile = File(...)):
     # -------- EMBEDDINGS --------
     embeddings = embed_texts(all_chunks)
 
-    # -------- STORE --------
-    store = get_store()
+    # -------- DOCUMENT-SCOPED STORE --------
+    store = get_store_for_document(file.filename)
     store.add(
         embeddings=embeddings,
         metadatas=all_metadata,
     )
+    store.save()
 
     return {
         "status": "ok",
-        "filename": file.filename,
-        "pages": len(set(m["page"] for m in all_metadata if m["page"])),
+        "document_id": file.filename,
+        "pages": len(set(m["page"] for m in all_metadata if m["page"] is not None)),
         "chunks": len(all_chunks),
     }
