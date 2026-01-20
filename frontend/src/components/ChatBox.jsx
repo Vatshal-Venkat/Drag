@@ -29,15 +29,34 @@ export default function ChatBox() {
 
     abortControllerRef.current = new AbortController();
 
-    const response = await fetch(
-      "http://127.0.0.1:8000/query/stream",
-      {
+    let response;
+    try {
+      response = await fetch("http://127.0.0.1:8000/query/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: question, top_k: 5 }),
+        body: JSON.stringify({
+          query: question,
+          top_k: 5,
+        }),
         signal: abortControllerRef.current.signal,
-      }
-    );
+      });
+    } catch (err) {
+      console.error("Network error:", err);
+      setLoading(false);
+      return;
+    }
+
+    if (!response.ok) {
+      console.error("Backend error:", response.status);
+      setLoading(false);
+      return;
+    }
+
+    if (!response.body) {
+      console.error("No response body (stream failed)");
+      setLoading(false);
+      return;
+    }
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder("utf-8");

@@ -1,4 +1,4 @@
-import RagChat from "@/pages/RagChat";
+import RagChat from "./pages/RagChat";
 
 export default function App() {
   return <RagChat />;
