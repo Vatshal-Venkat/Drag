@@ -25,7 +25,7 @@ export default function Message({ role, content, citations = [] }) {
   });
 
   return (
-    <div className="ai-card">
+    <div className="ai-card ai-glow">
       {/* Label */}
       <div className="ai-label">
         AI INSIGHT

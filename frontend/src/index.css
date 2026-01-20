@@ -75,7 +75,7 @@ body {
   background:
     radial-gradient(
       900px 500px at 12% -10%,
-      rgba(45, 212, 191, 0.12),
+      rgba(45, 212, 191, 0.06),
       transparent 45%
     ),
     radial-gradient(
@@ -150,4 +150,113 @@ h1, h2, h3, h4, h5 {
 ::selection {
   background: rgba(45, 212, 191, 0.25);
   color: #041d1a;
+}
+
+/* ============================
+   (everything you already have stays EXACTLY the same)
+   ============================ */
+
+/* ============================
+   🔥 TRON BACKGROUND GRID
+   ============================ */
+.tron-bg {
+  mix-blend-mode: screen;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* Grid lines */
+.tron-grid {
+  position: absolute;
+  inset: -200px;
+  background-image:
+    linear-gradient(
+      rgba(45, 212, 191, 0.06) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      rgba(45, 212, 191, 0.06) 1px,
+      transparent 1px
+    );
+  background-size: 60px 60px;
+  transform: perspective(800px) rotateX(65deg);
+  transform-origin: center;
+  opacity: 0.35;
+}
+
+/* Moving nodes */
+.tron-node {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background: #2dd4bf;
+  border-radius: 50%;
+  box-shadow: 0 0 12px rgba(45, 212, 191, 0.8);
+  opacity: 0.8;
+  animation: drift 20s linear infinite;
+}
+
+.node-1 {
+  top: 20%;
+  left: 10%;
+  animation-duration: 26s;
+}
+
+.node-2 {
+  top: 60%;
+  left: 80%;
+  animation-duration: 32s;
+}
+
+.node-3 {
+  top: 40%;
+  left: 50%;
+  animation-duration: 22s;
+}
+
+@keyframes drift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(220px, -320px, 0);
+  }
+}
+
+
+/* ============================
+   Ensure UI stays ABOVE grid
+   ============================ */
+.app-shell {
+  position: relative;
+  z-index: 2;
+}
+/* ============================
+   AI card micro glow separation
+   ============================ */
+.ai-glow {
+  position: relative;
+  backdrop-filter: blur(6px);
+}
+
+.ai-glow::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+
+  background:
+    radial-gradient(
+      120px 80px at top left,
+      rgba(45, 212, 191, 0.25),
+      transparent 70%
+    );
+
+  opacity: 0.45;
+  pointer-events: none;
+  z-index: -1;
 }
