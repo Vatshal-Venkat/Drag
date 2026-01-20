@@ -147,6 +147,9 @@ def generate_sentence_citations(
             if matched_sources else 0.0
         )
 
+
+        
+
         citations.append({
             "sentence": sentence,
             "confidence": round(avg_conf, 4),
