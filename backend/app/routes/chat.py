@@ -7,7 +7,6 @@ from app.services.retriever import retrieve
 from app.services.generator import generate_answer
 from app.prompts import load_prompt
 
-
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 # Load RAG prompt once at startup
@@ -40,17 +39,16 @@ def chat_message(payload: ChatRequest):
 
     # 4️⃣ Retrieve context from FAISS
     contexts = retrieve(payload.user_text, k=5)
-
     context_text = "\n".join(c["text"] for c in contexts)
 
-    # 5️⃣ Build final prompt
+    # 5️⃣ Build final RAG prompt
     prompt = RAG_PROMPT.format(
         memory=memory_text,
         context=context_text,
         question=payload.user_text,
     )
 
-    # 6️⃣ Generate answer (ONE response)
+    # 6️⃣ Generate answer using Groq (LLaMA-3)
     answer = generate_answer(prompt)
 
     # 7️⃣ Append agent message

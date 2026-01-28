@@ -3,8 +3,22 @@ import re
 import textwrap
 
 from app.config import LLM_PROVIDER
-from app.llm.ollama import stream_ollama
-from app.llm.gemini import stream_gemini
+
+# -------------------------------------------------
+# COMMENTED OUT: Other LLM providers (kept for future)
+# -------------------------------------------------
+
+# from app.llm.ollama import stream_ollama
+# from app.llm.gemini import stream_gemini
+
+# -------------------------------------------------
+# ACTIVE LLM: Groq (LLaMA 3)
+# -------------------------------------------------
+
+from groq import Groq
+
+_groq_client = Groq()
+GROQ_MODEL = "llama3-8b-8192"
 
 
 # -------------------------
@@ -40,15 +54,54 @@ Content:
 
 def _stream_llm(prompt: str) -> Iterator[str]:
     """
-    Dispatch streaming call based on provider.
+    Streaming dispatcher.
+
+    Currently ACTIVE:
+    - Groq (LLaMA-3)
+
+    COMMENTED (inactive):
+    - Ollama
+    - Gemini
     """
-    if LLM_PROVIDER == "ollama":
-        return stream_ollama(prompt)
 
-    if LLM_PROVIDER == "gemini":
-        return stream_gemini(prompt)
+    # -----------------------------------------
+    # COMMENTED PROVIDERS (do not delete)
+    # -----------------------------------------
 
-    raise ValueError(f"Unsupported LLM_PROVIDER: {LLM_PROVIDER}")
+    # if LLM_PROVIDER == "ollama":
+    #     return stream_ollama(prompt)
+
+    # if LLM_PROVIDER == "gemini":
+    #     return stream_gemini(prompt)
+
+    # -----------------------------------------
+    # ACTIVE: GROQ STREAMING
+    # -----------------------------------------
+
+    stream = _groq_client.chat.completions.create(
+        model=GROQ_MODEL,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You are a strict RAG assistant. "
+                    "Answer only using the provided context. "
+                    "Do not hallucinate or assume missing facts."
+                ),
+            },
+            {
+                "role": "user",
+                "content": prompt,
+            },
+        ],
+        temperature=0.3,
+        stream=True,
+    )
+
+    for chunk in stream:
+        delta = chunk.choices[0].delta
+        if delta and delta.content:
+            yield delta.content
 
 
 # -------------------------
@@ -148,7 +201,6 @@ def generate_sentence_citations(
 
     for sentence in sentences:
         matched_sources = []
-
         sentence_lower = sentence.lower()
 
         # 1️⃣ Lexical grounding
