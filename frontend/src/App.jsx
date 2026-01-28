@@ -1,5 +1,6 @@
-import ChatBox from "./components/ChatBox";
+import AppLayout from "./layout/AppLayout";
+import "./App.css";
 
 export default function App() {
-  return <ChatBox />;
+  return <AppLayout />;
 }

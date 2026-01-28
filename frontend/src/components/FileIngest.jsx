@@ -22,10 +22,23 @@ export default function FileIngest({ onIngest }) {
         body: formData,
       });
 
+      console.log("UPLOAD STATUS:", res.status);
+
       const data = await res.json();
-      onIngest(data.document_id);
-      setStatus(`Indexed ${data.chunks} chunks`);
-    } catch {
+      console.log("UPLOAD RESPONSE:", data);
+
+      if (!res.ok) {
+        throw new Error(data?.detail || "Upload failed");
+      }
+
+      // protect against missing fields
+      if (onIngest && typeof onIngest === "function") {
+        onIngest(data.document_id);
+      }
+
+      setStatus(`Indexed ${data.chunks ?? "?"} chunks`);
+    } catch (err) {
+      console.error("UPLOAD ERROR:", err);
       setStatus("Upload failed");
     } finally {
       setLoading(false);
@@ -35,7 +48,6 @@ export default function FileIngest({ onIngest }) {
 
   return (
     <div className="ingest-box">
-      {/* Hidden native input */}
       <input
         ref={fileInputRef}
         type="file"
@@ -44,7 +56,6 @@ export default function FileIngest({ onIngest }) {
         onChange={(e) => setFile(e.target.files[0])}
       />
 
-      {/* Custom trigger */}
       <button
         className="ingest-select"
         onClick={() => fileInputRef.current.click()}
@@ -57,7 +68,7 @@ export default function FileIngest({ onIngest }) {
         onClick={uploadFile}
         disabled={!file || loading}
       >
-        Upload
+        {loading ? "Uploading…" : "Upload"}
       </button>
 
       {status && <div className="ingest-status">{status}</div>}
