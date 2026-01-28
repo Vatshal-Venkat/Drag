@@ -52,12 +52,12 @@ def _stream_llm(prompt: str) -> Iterator[str]:
 
 
 # -------------------------
-# Answer generation (STRICT RAG)
+# Answer generation (STRICT RAG, STREAMING)
 # -------------------------
 
 def stream_answer(query: str, contexts: List[Dict]) -> Iterator[str]:
     """
-    Production-grade grounded answer generator.
+    Production-grade grounded answer generator (STREAMING).
 
     Guarantees:
     - Uses ONLY retrieved context
@@ -99,6 +99,30 @@ Answer:
 
 
 # -------------------------
+# Answer generation (NON-STREAMING)
+# -------------------------
+
+def generate_answer(prompt: str) -> str:
+    """
+    Non-streaming answer generator.
+
+    Used by:
+    - /chat/message (ChatGPT-style interaction)
+    - Any synchronous workflows
+
+    Internally consumes the streaming generator
+    and returns a single consolidated string.
+    """
+
+    tokens = []
+
+    for token in _stream_llm(prompt):
+        tokens.append(token)
+
+    return "".join(tokens).strip()
+
+
+# -------------------------
 # Sentence-level citations
 # -------------------------
 
@@ -127,7 +151,7 @@ def generate_sentence_citations(
 
         sentence_lower = sentence.lower()
 
-        # 1️⃣ Lexical grounding (robust, not brittle)
+        # 1️⃣ Lexical grounding
         for ctx in contexts:
             ctx_text = ctx.get("text", "").lower()
             if any(word in ctx_text for word in sentence_lower.split()[:6]):
@@ -146,9 +170,6 @@ def generate_sentence_citations(
             / len(matched_sources)
             if matched_sources else 0.0
         )
-
-
-        
 
         citations.append({
             "sentence": sentence,
