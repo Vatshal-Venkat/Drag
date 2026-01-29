@@ -8,15 +8,9 @@ export default function MessageInput() {
 
   const handleSend = useCallback(async () => {
     if (!text.trim() || loading) return;
-
-    const message = text;
-    setText(""); // clear ONCE
-
-    try {
-      await sendUserMessage(message);
-    } catch (err) {
-      console.error("Send failed:", err);
-    }
+    const msg = text;
+    setText("");
+    await sendUserMessage(msg);
   }, [text, loading, sendUserMessage]);
 
   return (

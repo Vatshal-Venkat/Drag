@@ -4,22 +4,25 @@ import ChatHistoryItem from "./ChatHistoryItem";
 import FileIngest from "../components/FileIngest";
 
 export default function Sidebar() {
-  const {
-    sessions,
-    currentSessionId,
-    loadSessions,
-    startNewSession,
-    loadSession,
-  } = useChatStore();
+  const sessions = useChatStore((s) => s.sessions);
+  const currentSessionId = useChatStore((s) => s.currentSessionId);
+  const loadSessions = useChatStore((s) => s.loadSessions);
+  const startNewSession = useChatStore((s) => s.startNewSession);
+  const loadSession = useChatStore((s) => s.loadSession); // may be undefined
 
   useEffect(() => {
-    loadSessions();
-  }, []);
+    if (loadSessions) {
+      loadSessions();
+    }
+  }, [loadSessions]);
 
   return (
     <div style={styles.sidebar}>
       {/* New Chat */}
-      <button style={styles.newChat} onClick={startNewSession}>
+      <button
+        style={styles.newChat}
+        onClick={() => startNewSession && startNewSession()}
+      >
         + New Chat
       </button>
 
@@ -30,18 +33,22 @@ export default function Sidebar() {
 
       {/* Chat History */}
       <div style={styles.history}>
-        {sessions.length === 0 && (
+        {!sessions || sessions.length === 0 ? (
           <p style={{ opacity: 0.5 }}>No chats yet</p>
+        ) : (
+          sessions.map((s) => (
+            <ChatHistoryItem
+              key={s.id}
+              title={s.title || "New Chat"}
+              active={s.id === currentSessionId}
+              onClick={() => {
+                if (loadSession) {
+                  loadSession(s.id);
+                }
+              }}
+            />
+          ))
         )}
-
-        {sessions.map((s) => (
-          <ChatHistoryItem
-            key={s.id}
-            title={s.title}
-            active={s.id === currentSessionId}
-            onClick={() => loadSession(s.id)}
-          />
-        ))}
       </div>
     </div>
   );

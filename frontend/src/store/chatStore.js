@@ -2,17 +2,17 @@ import { create } from "zustand";
 import {
   createSession,
   fetchSessions,
-  fetchSession,
-  sendMessage,
 } from "../services/chatApi";
+import { streamChatMessage } from "../services/chatApi";
 
 export const useChatStore = create((set, get) => ({
+  /* ----------------- STATE ----------------- */
   sessions: [],
   currentSessionId: null,
   messages: [],
   loading: false,
 
-  /* ---------------- Sessions ---------------- */
+  /* ----------------- SESSIONS ----------------- */
 
   loadSessions: async () => {
     const sessions = await fetchSessions();
@@ -29,22 +29,12 @@ export const useChatStore = create((set, get) => ({
     return session.id;
   },
 
-  loadSession: async (sessionId) => {
-    const session = await fetchSession(sessionId);
-    set({
-      currentSessionId: session.id,
-      messages: session.messages || [],
-    });
-  },
-
-  /* ---------------- Messaging ---------------- */
+  /* ----------------- MESSAGES ----------------- */
 
   sendUserMessage: async (text) => {
     if (!text.trim()) return;
 
     let { currentSessionId } = get();
-
-    // ✅ AUTO-CREATE SESSION IF NONE EXISTS
     if (!currentSessionId) {
       currentSessionId = await get().startNewSession();
     }
@@ -55,36 +45,42 @@ export const useChatStore = create((set, get) => ({
       timestamp: new Date().toISOString(),
     };
 
-    // ✅ Show user message immediately
+    const assistantMsg = {
+      role: "assistant",
+      content: "",
+      timestamp: new Date().toISOString(),
+    };
+
     set((state) => ({
-      messages: [...state.messages, userMsg],
+      messages: [...state.messages, userMsg, assistantMsg],
       loading: true,
     }));
 
+    let buffer = "";
+
     try {
-      const res = await sendMessage(currentSessionId, text);
-
-      const agentMsg = {
-        role: "assistant",
-        content:
-          res?.content ||
-          res?.answer ||
-          res?.response ||
-          "No response from model.",
-        timestamp: new Date().toISOString(),
-      };
-
-      set((state) => ({
-        messages: [...state.messages, agentMsg],
-        loading: false,
-      }));
-    } catch (err) {
+      await streamChatMessage(
+        currentSessionId,
+        text,
+        (token) => {
+          buffer += token;
+          set((state) => {
+            const msgs = [...state.messages];
+            msgs[msgs.length - 1].content = buffer;
+            return { messages: msgs };
+          });
+        },
+        () => {
+          set({ loading: false });
+        }
+      );
+    } catch {
       set((state) => ({
         messages: [
-          ...state.messages,
+          ...state.messages.slice(0, -1),
           {
             role: "assistant",
-            content: "⚠️ Error contacting server.",
+            content: "⚠️ Error streaming response.",
             timestamp: new Date().toISOString(),
           },
         ],

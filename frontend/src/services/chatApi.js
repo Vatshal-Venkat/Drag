@@ -1,8 +1,8 @@
 const API_BASE = "http://localhost:8000";
 
-/* -------------------------------------------------------
-   Session APIs
-------------------------------------------------------- */
+/* =========================
+   Session APIs (JSON)
+========================= */
 
 /**
  * Create a new chat session
@@ -20,7 +20,7 @@ export async function createSession() {
 }
 
 /**
- * Fetch all chat sessions
+ * Fetch all sessions
  */
 export async function fetchSessions() {
   const res = await fetch(`${API_BASE}/sessions`);
@@ -33,13 +33,9 @@ export async function fetchSessions() {
 }
 
 /**
- * Fetch a single session with messages
+ * Fetch one session
  */
 export async function fetchSession(sessionId) {
-  if (!sessionId) {
-    throw new Error("Session ID is required");
-  }
-
   const res = await fetch(`${API_BASE}/sessions/${sessionId}`);
 
   if (!res.ok) {
@@ -49,26 +45,24 @@ export async function fetchSession(sessionId) {
   return await res.json();
 }
 
-/* -------------------------------------------------------
-   Messaging API
-------------------------------------------------------- */
+/* =========================
+   Chat Streaming API (SSE)
+========================= */
 
 /**
- * Send a user message and receive ONE agent response
- * ✅ Pure async
- * ✅ No side effects
- * ✅ No UI coupling
- * ✅ Always normalized output
+ * Stream chat response from backend (/chat/stream)
  */
-export async function sendMessage(sessionId, userText) {
-  if (!sessionId || !userText?.trim()) {
-    throw new Error("Invalid message payload");
-  }
-
-  const res = await fetch(`${API_BASE}/chat/message`, {
+export async function streamChatMessage(
+  sessionId,
+  userText,
+  onToken,
+  onDone
+) {
+  const res = await fetch(`${API_BASE}/chat/stream`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      Accept: "text/event-stream",
     },
     body: JSON.stringify({
       session_id: sessionId,
@@ -76,23 +70,34 @@ export async function sendMessage(sessionId, userText) {
     }),
   });
 
-  if (!res.ok) {
-    throw new Error("Failed to send message");
+  if (!res.ok || !res.body) {
+    throw new Error("Failed to stream chat response");
   }
 
-  const data = await res.json();
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder("utf-8");
 
-  // 🔒 HARD NORMALIZATION (never breaks UI)
-  return {
-    role: "assistant",
-    content:
-      typeof data === "string"
-        ? data
-        : data?.content ||
-          data?.answer ||
-          data?.response ||
-          "No response from model.",
-    timestamp: new Date().toISOString(),
-    sources: Array.isArray(data?.sources) ? data.sources : [],
-  };
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+
+    const chunk = decoder.decode(value, { stream: true });
+    const events = chunk.split("\n\n").filter(Boolean);
+
+    for (const event of events) {
+      if (!event.startsWith("data:")) continue;
+
+      const payload = event.replace("data:", "").trim();
+
+      if (payload === "[DONE]") {
+        onDone?.();
+        return;
+      }
+
+      const parsed = JSON.parse(payload);
+      if (parsed.type === "token") {
+        onToken(parsed.value);
+      }
+    }
+  }
 }
