@@ -7,10 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 # Existing API routes
 from app.api import ingest, health, query_stream
 
-# ChatGPT-style routes
-from app.routes import chat, sessions
-
-from app.routes import chat_stream
+# Chat routes
+from app.routes import chat, sessions, chat_stream
 
 app = FastAPI(title="RAG Accelerator")
 
@@ -32,9 +30,8 @@ app.include_router(ingest.router)
 app.include_router(query_stream.router)
 
 # -------------------------
-# ChatGPT-style routes
+# Chat routes
 # -------------------------
-app.include_router(sessions.router)   # /sessions
-app.include_router(chat.router)       # /chat/message
-
-app.include_router(chat_stream.router)
+app.include_router(sessions.router)     # /sessions
+app.include_router(chat.router)         # /chat/message
+app.include_router(chat_stream.router)  # /query/stream
