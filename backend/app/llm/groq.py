@@ -2,7 +2,7 @@ from groq import Groq
 
 client = Groq()
 
-def groq_chat(messages, model="llama-3.1-70b-versatile"):
+def groq_chat(messages, model="llama-3.1-8b-instant"):
     return client.chat.completions.create(
         model=model,
         messages=messages

@@ -1,12 +1,18 @@
 from uuid import uuid4
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Literal
+
+
+Role = Literal["system", "user", "assistant"]
 
 
 class SessionManager:
     def __init__(self):
         # session_id -> session object
         self.sessions: Dict[str, Dict] = {}
+
+        # Explicit, single source of truth
+        self.allowed_roles = {"system", "user", "assistant"}
 
     def create_session(self) -> Dict:
         session_id = str(uuid4())
@@ -36,12 +42,18 @@ class SessionManager:
     def get_session(self, session_id: str) -> Optional[Dict]:
         return self.sessions.get(session_id)
 
-    def append_message(self, session_id: str, role: str, content: str) -> None:
+    def append_message(self, session_id: str, role: Role, content: str) -> None:
         if session_id not in self.sessions:
             raise ValueError(f"Session not found: {session_id}")
 
-        if role not in {"user", "agent"}:
-            raise ValueError(f"Invalid role: {role}")
+        if role not in self.allowed_roles:
+            raise ValueError(
+                f"Invalid role: {role}. Allowed roles: {self.allowed_roles}"
+            )
+
+        if not content or not content.strip():
+            # silently ignore empty messages (important for streaming edge cases)
+            return
 
         session = self.sessions[session_id]
         now = datetime.utcnow()
@@ -58,5 +70,5 @@ class SessionManager:
 
 
 # ✅ SINGLE GLOBAL INSTANCE (IMPORTANT)
-# This ensures the same memory is shared across routes
+# Ensures shared memory across all routes
 session_manager = SessionManager()
