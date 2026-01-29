@@ -1,14 +1,48 @@
+# =========================
 # Secrets
+# =========================
 .env
+.env.*
 
+# =========================
 # Python
+# =========================
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.envrc
 
-# Vector stores / local indexes
+# =========================
+# Vector stores / ML artifacts
+# =========================
 *.faiss
 *.pkl
+*.pt
+*.bin
+*.onnx
 
-# Node
+# =========================
+# Node / Frontend
+# =========================
 node_modules/
 dist/
+build/
+.vite/
+
+# =========================
+# OS / Editor junk
+# =========================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# =========================
+# Logs & temp
+# =========================
+*.log
+*.tmp
+*.cache
