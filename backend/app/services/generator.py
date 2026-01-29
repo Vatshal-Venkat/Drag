@@ -10,7 +10,7 @@ from groq import Groq
 # -------------------------------------------------
 
 _groq_client = Groq()
-GROQ_MODEL = "llama3-70b-8192"
+GROQ_MODEL = "llama-3.1-70b-versatile"
 
 
 # -------------------------
