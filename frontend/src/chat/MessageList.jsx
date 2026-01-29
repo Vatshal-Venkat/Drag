@@ -8,10 +8,17 @@ export default function MessageList() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages.length]);
 
   return (
-    <div style={styles.list}>
+    <div
+      style={{
+        flex: 1,
+        overflowY: "auto",
+        padding: "24px",
+        background: "#020617",
+      }}
+    >
       {messages.map((m, i) => (
         <MessageRow
           key={i}
@@ -28,11 +35,3 @@ export default function MessageList() {
     </div>
   );
 }
-
-const styles = {
-  list: {
-    flex: 1,
-    overflowY: "auto",
-    padding: "24px",
-  },
-};

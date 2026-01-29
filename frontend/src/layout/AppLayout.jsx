@@ -1,11 +1,14 @@
+import { memo } from "react";
 import Sidebar from "../sidebar/Sidebar";
 import ChatContainer from "../chat/ChatContainer";
+
+const MemoChatContainer = memo(ChatContainer);
 
 export default function AppLayout() {
   return (
     <div style={styles.root}>
       <Sidebar />
-      <ChatContainer />
+      <MemoChatContainer />
     </div>
   );
 }

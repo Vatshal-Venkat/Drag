@@ -12,6 +12,8 @@ export const useChatStore = create((set, get) => ({
   messages: [],
   loading: false,
 
+  /* ---------------- Sessions ---------------- */
+
   loadSessions: async () => {
     const sessions = await fetchSessions();
     set({ sessions });
@@ -24,6 +26,7 @@ export const useChatStore = create((set, get) => ({
       currentSessionId: session.id,
       messages: [],
     }));
+    return session.id;
   },
 
   loadSession: async (sessionId) => {
@@ -34,9 +37,17 @@ export const useChatStore = create((set, get) => ({
     });
   },
 
+  /* ---------------- Messaging ---------------- */
+
   sendUserMessage: async (text) => {
-    const { currentSessionId } = get();
-    if (!currentSessionId || !text.trim()) return;
+    if (!text.trim()) return;
+
+    let { currentSessionId } = get();
+
+    // ✅ AUTO-CREATE SESSION IF NONE EXISTS
+    if (!currentSessionId) {
+      currentSessionId = await get().startNewSession();
+    }
 
     const userMsg = {
       role: "user",
@@ -44,23 +55,22 @@ export const useChatStore = create((set, get) => ({
       timestamp: new Date().toISOString(),
     };
 
-    // 1️⃣ Always show user message immediately
+    // ✅ Show user message immediately
     set((state) => ({
       messages: [...state.messages, userMsg],
       loading: true,
     }));
 
     try {
-      // 2️⃣ Call backend
       const res = await sendMessage(currentSessionId, text);
 
-      // 3️⃣ Normalize agent response
       const agentMsg = {
         role: "assistant",
         content:
-          typeof res === "string"
-            ? res
-            : res?.content || res?.answer || "No response",
+          res?.content ||
+          res?.answer ||
+          res?.response ||
+          "No response from model.",
         timestamp: new Date().toISOString(),
       };
 
@@ -69,7 +79,6 @@ export const useChatStore = create((set, get) => ({
         loading: false,
       }));
     } catch (err) {
-      // 4️⃣ Never fail silently
       set((state) => ({
         messages: [
           ...state.messages,

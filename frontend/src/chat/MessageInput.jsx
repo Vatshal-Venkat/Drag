@@ -1,26 +1,39 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useChatStore } from "../store/chatStore";
 
 export default function MessageInput() {
   const [text, setText] = useState("");
   const sendUserMessage = useChatStore((s) => s.sendUserMessage);
+  const loading = useChatStore((s) => s.loading);
 
-  const handleSend = async () => {
-    if (!text.trim()) return;
-    await sendUserMessage(text);
-    setText("");
-  };
+  const handleSend = useCallback(async () => {
+    if (!text.trim() || loading) return;
+
+    const message = text;
+    setText(""); // clear ONCE
+
+    try {
+      await sendUserMessage(message);
+    } catch (err) {
+      console.error("Send failed:", err);
+    }
+  }, [text, loading, sendUserMessage]);
 
   return (
     <div style={styles.wrapper}>
-      <input
+      <textarea
         style={styles.input}
+        rows={2}
         value={text}
         placeholder="Ask a business or technical question..."
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter") handleSend();
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            handleSend();
+          }
         }}
+        disabled={loading}
       />
     </div>
   );
@@ -38,5 +51,8 @@ const styles = {
     background: "#020617",
     color: "#e5e7eb",
     border: "1px solid #1f2937",
+    resize: "none",
+    outline: "none",
+    fontSize: "14px",
   },
 };

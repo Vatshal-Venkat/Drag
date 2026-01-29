@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import Message from "./Message";
 import SourceCitations from "./SourceCitations";
 import FileIngest from "./FileIngest";
@@ -23,15 +23,17 @@ export default function ChatBox() {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  function handleIngest(docId) {
+  const handleIngest = useCallback((docId) => {
     setDocuments((prev) => (prev.includes(docId) ? prev : [...prev, docId]));
     setActiveDocumentId(docId);
-  }
+  }, []);
 
-  async function sendMessage() {
+  const sendMessage = useCallback(async () => {
     if (!input.trim() || loading || !activeDocumentId) return;
 
     const question = input;
+
+    // clear ONCE, here
     setInput("");
     setSources([]);
     setLoading(true);
@@ -44,23 +46,23 @@ export default function ChatBox() {
 
     abortControllerRef.current = new AbortController();
 
-    const res = await fetch("http://127.0.0.1:8000/query/stream", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        query: question,
-        top_k: 5,
-        document_id: activeDocumentId,
-      }),
-      signal: abortControllerRef.current.signal,
-    });
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder("utf-8");
-
-    let assistantText = "";
-
     try {
+      const res = await fetch("http://127.0.0.1:8000/query/stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: question,
+          top_k: 5,
+          document_id: activeDocumentId,
+        }),
+        signal: abortControllerRef.current.signal,
+      });
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+
+      let assistantText = "";
+
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
@@ -72,11 +74,7 @@ export default function ChatBox() {
           if (!event.startsWith("data:")) continue;
 
           const payload = event.replace("data:", "").trim();
-
-          if (payload === "[DONE]") {
-            setLoading(false);
-            return;
-          }
+          if (payload === "[DONE]") return;
 
           const parsed = JSON.parse(payload);
 
@@ -102,14 +100,15 @@ export default function ChatBox() {
           }
         }
       }
+    } catch (err) {
+      console.error("Streaming error:", err);
     } finally {
       setLoading(false);
     }
-  }
+  }, [input, loading, activeDocumentId]);
 
   return (
     <>
-      {/* 🔥 TRON background */}
       <BackgroundGrid />
 
       <div className="app-shell">
@@ -141,9 +140,14 @@ export default function ChatBox() {
             placeholder="Ask a business or technical question…"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            disabled={loading}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+              }
+            }}
           />
-          <button onClick={sendMessage} disabled={loading}>
+          <button type="button" onClick={sendMessage} disabled={loading}>
             Analyze
           </button>
         </div>
