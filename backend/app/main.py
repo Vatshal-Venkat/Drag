@@ -10,6 +10,8 @@ from app.api import ingest, health, query_stream
 # ChatGPT-style routes
 from app.routes import chat, sessions
 
+from app.routes import chat_stream
+
 app = FastAPI(title="RAG Accelerator")
 
 # -------------------------
@@ -34,3 +36,5 @@ app.include_router(query_stream.router)
 # -------------------------
 app.include_router(sessions.router)   # /sessions
 app.include_router(chat.router)       # /chat/message
+
+app.include_router(chat_stream.router)

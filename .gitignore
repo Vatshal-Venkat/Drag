@@ -1,0 +1,14 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.pyc
+
+# Vector stores / local indexes
+*.faiss
+*.pkl
+
+# Node
+node_modules/
+dist/
