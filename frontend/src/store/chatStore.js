@@ -25,6 +25,7 @@ export const useChatStore = create((set, get) => ({
   currentSessionId: null,
   messages: [],
   loading: false,
+  error: null, // ✅ added (non-breaking)
   sessionSummaries: {},
   hasOpenedSourcesForSession: {},
 
@@ -94,6 +95,7 @@ export const useChatStore = create((set, get) => ({
     set((state) => ({
       messages: [...state.messages, userMsg, assistantMsg],
       loading: true,
+      error: null,
     }));
 
     let buffer = "";
@@ -107,13 +109,9 @@ export const useChatStore = create((set, get) => ({
 
           const {
             hasOpenedSourcesForSession,
-            sourcesPanelOpen,
           } = get();
 
-          // 🔥 AUTO-OPEN SOURCES (ONCE PER SESSION)
-          if (
-            !hasOpenedSourcesForSession[currentSessionId]
-          ) {
+          if (!hasOpenedSourcesForSession[currentSessionId]) {
             set((state) => ({
               sourcesPanelOpen: true,
               hasOpenedSourcesForSession: {
@@ -132,17 +130,10 @@ export const useChatStore = create((set, get) => ({
         () => set({ loading: false })
       );
     } catch {
-      set((state) => ({
-        messages: [
-          ...state.messages.slice(0, -1),
-          {
-            role: "assistant",
-            content: "⚠️ Error streaming response.",
-            timestamp: new Date().toISOString(),
-          },
-        ],
+      set({
         loading: false,
-      }));
+        error: "stream_failed",
+      });
     }
   },
 }));
