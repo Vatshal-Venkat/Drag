@@ -90,6 +90,22 @@ class FAISSStore:
         return results
 
     # -------------------------
+    # 🔹 NEW: BM25 SUPPORT (ADDITIVE ONLY)
+    # -------------------------
+
+    def get_all_texts(self) -> List[str]:
+        """
+        Return all chunk texts in this store (for BM25).
+        """
+        return [m.get("text", "") for m in self.metadata]
+
+    def get_all_metadata(self) -> List[Dict]:
+        """
+        Return full metadata list (safe copy).
+        """
+        return list(self.metadata)
+
+    # -------------------------
     # Persistence
     # -------------------------
 

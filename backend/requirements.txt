@@ -7,3 +7,4 @@ google-generativeai
 sentence-transformers
 groq
 python-dotenv
+rank-bm25

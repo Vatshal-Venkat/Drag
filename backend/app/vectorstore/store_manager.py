@@ -1,5 +1,5 @@
 import os
-from typing import Optional
+from typing import Optional, List
 
 from app.vectorstore.faiss_store import FAISSStore
 
@@ -70,21 +70,44 @@ def get_default_store() -> Optional[FAISSStore]:
 def set_default_store_from_document(doc_id: str) -> FAISSStore:
     """
     Promote a document store to become the default/global store.
-
-    Useful when:
-    - Only one document exists
-    - First ingestion should power chat
     """
     source_store = get_store_for_document(doc_id)
     default_store_dir = _get_store_dir(DEFAULT_STORE_ID)
 
-    # Ensure directory exists
     os.makedirs(default_store_dir, exist_ok=True)
 
-    # Persist source store into default location
-    source_store.save(default_store_dir)
+    source_store.save()
 
     return FAISSStore(
         dim=EMBED_DIM,
         store_dir=default_store_dir,
     )
+
+
+# --------------------------------------------------
+# 🔹 NEW: MULTI-DOCUMENT DISCOVERY (ADDITIVE)
+# --------------------------------------------------
+
+def list_all_document_stores() -> List[FAISSStore]:
+    """
+    Return FAISSStore objects for all document folders.
+    """
+    stores: List[FAISSStore] = []
+
+    if not os.path.exists(BASE_STORE_DIR):
+        return stores
+
+    for name in os.listdir(BASE_STORE_DIR):
+        store_dir = _get_store_dir(name)
+        if not os.path.isdir(store_dir):
+            continue
+
+        index_path = os.path.join(store_dir, "index.faiss")
+        meta_path = os.path.join(store_dir, "meta.pkl")
+
+        if os.path.exists(index_path) and os.path.exists(meta_path):
+            stores.append(
+                FAISSStore(dim=EMBED_DIM, store_dir=store_dir)
+            )
+
+    return stores
