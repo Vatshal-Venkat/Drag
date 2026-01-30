@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useChatStore } from "../store/chatStore";
 import MessageRow from "./MessageRow";
 
-export default function MessageList() {
+export default function MessageList({ hasMessages }) {
   const messages = useChatStore((s) => s.messages);
   const bottomRef = useRef(null);
 
@@ -13,11 +13,7 @@ export default function MessageList() {
   return (
     <div
       data-chat-stream
-      style={{
-        flex: 1,
-        overflowY: "auto",
-        padding: "36px 48px",
-      }}
+      style={styles.stream}
     >
       {messages.map((m, i) => (
         <MessageRow
@@ -36,3 +32,11 @@ export default function MessageList() {
     </div>
   );
 }
+
+const styles = {
+  stream: {
+    flex: 1,
+    overflowY: "auto",          // ✅ scrolling restored
+    padding: "36px 48px 180px", // ✅ space for input bar
+  },
+};
