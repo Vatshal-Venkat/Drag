@@ -15,6 +15,6 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     height: "100vh",
-    background: "#020617",
+    background: "#141414",
   },
 };

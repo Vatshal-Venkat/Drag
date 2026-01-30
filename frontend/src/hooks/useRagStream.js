@@ -4,6 +4,7 @@ export function useRagStream() {
   const [messages, setMessages] = useState([]);
   const [sources, setSources] = useState([]);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [lastActivity, setLastActivity] = useState(Date.now());
 
   const controllerRef = useRef(null);
 
@@ -11,9 +12,9 @@ export function useRagStream() {
     if (!question?.trim()) return;
 
     setIsStreaming(true);
+    setLastActivity(Date.now());
     setSources([]);
 
-    // 1️⃣ Push user + empty assistant shell
     setMessages((prev) => [
       ...prev,
       { role: "user", content: question },
@@ -53,7 +54,6 @@ export function useRagStream() {
 
           const payload = event.replace("data:", "").trim();
 
-          // 🔚 END
           if (payload === "[DONE]") {
             setIsStreaming(false);
             return;
@@ -61,9 +61,9 @@ export function useRagStream() {
 
           const parsed = JSON.parse(payload);
 
-          // 🔹 TOKEN STREAM
           if (parsed.type === "token") {
             assistantText += parsed.value;
+            setLastActivity(Date.now());
 
             setMessages((prev) => {
               const updated = [...prev];
@@ -75,7 +75,6 @@ export function useRagStream() {
             });
           }
 
-          // 🔹 SENTENCE-LEVEL CITATIONS
           if (parsed.type === "citations") {
             setMessages((prev) => {
               const updated = [...prev];
@@ -87,7 +86,6 @@ export function useRagStream() {
             });
           }
 
-          // 🔹 SOURCES (with page + confidence)
           if (parsed.type === "sources") {
             setSources(parsed.value || []);
           }
@@ -108,9 +106,10 @@ export function useRagStream() {
   }
 
   return {
-    messages,     // [{ role, content, citations }]
-    sources,      // [{ id, source, page, confidence, text }]
+    messages,
+    sources,
     isStreaming,
+    lastActivity, // 🔑 used for idle animations
     ask,
     stop,
   };

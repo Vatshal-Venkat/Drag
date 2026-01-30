@@ -14,12 +14,11 @@ export default function MessageInput() {
   }, [text, loading, sendUserMessage]);
 
   return (
-    <div style={styles.wrapper}>
+    <div className="input-bar" style={{ padding: "22px 32px" }}>
       <textarea
-        style={styles.input}
         rows={2}
         value={text}
-        placeholder="Ask a business or technical question..."
+        placeholder="Ask a business or technical question…"
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.shiftKey) {
@@ -29,24 +28,13 @@ export default function MessageInput() {
         }}
         disabled={loading}
       />
+
+      <button
+        onClick={handleSend}
+        disabled={loading || !text.trim()}
+      >
+        {loading ? "Thinking…" : "Analyze"}
+      </button>
     </div>
   );
 }
-
-const styles = {
-  wrapper: {
-    padding: "16px",
-    borderTop: "1px solid #1f2937",
-  },
-  input: {
-    width: "100%",
-    padding: "12px",
-    borderRadius: "8px",
-    background: "#020617",
-    color: "#e5e7eb",
-    border: "1px solid #1f2937",
-    resize: "none",
-    outline: "none",
-    fontSize: "14px",
-  },
-};
