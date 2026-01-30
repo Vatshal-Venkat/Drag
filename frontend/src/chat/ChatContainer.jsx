@@ -15,7 +15,7 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     height: "100vh",
-    background: "#141414",
-    paddingBottom: "120px", // ⬅️ reserves space for dock
+    background: "#141418",
+    paddingBottom: "120px", // space for fixed input dock
   },
 };

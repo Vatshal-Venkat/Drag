@@ -15,7 +15,7 @@ export default function AppLayout() {
       {/* LEFT SIDEBAR */}
       <Sidebar />
 
-      {/* FLOATING SIDEBAR HANDLE (always accessible) */}
+      {/* FLOATING SIDEBAR HANDLE */}
       {!sidebarOpen && (
         <div style={styles.sidebarHandle} onClick={toggleSidebar}>
           ❯
@@ -30,10 +30,13 @@ export default function AppLayout() {
           marginRight: sourcesOpen ? 360 : 0,
         }}
       >
-        <MemoChatContainer />
+        {/* ⬇️ IMPORTANT WRAPPER */}
+        <div style={styles.chatShell}>
+          <MemoChatContainer />
+        </div>
       </div>
 
-      {/* RIGHT SOURCES PANEL SLOT */}
+      {/* RIGHT SOURCES PANEL */}
       <div
         style={{
           ...styles.sourcesPanel,
@@ -63,6 +66,10 @@ const styles = {
     height: "100%",
     background: "#141414",
     transition: "margin 0.25s ease",
+  },
+  chatShell: {
+    position: "relative",
+    height: "100%",
   },
   sidebarHandle: {
     position: "fixed",

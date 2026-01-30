@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 import { useChatStore } from "../store/chatStore";
 import ChatHistoryItem from "./ChatHistoryItem";
-import FileIngest from "../components/FileIngest";
 
 export default function Sidebar() {
   const sessions = useChatStore((s) => s.sessions);
@@ -39,11 +38,6 @@ export default function Sidebar() {
         + New Chat
       </button>
 
-      {/* Upload */}
-      <div style={styles.upload}>
-        <FileIngest />
-      </div>
-
       {/* History */}
       <div style={styles.history}>
         {!sessions || sessions.length === 0 ? (
@@ -52,7 +46,11 @@ export default function Sidebar() {
           sessions.map((s) => (
             <ChatHistoryItem
               key={s.id}
-              title={s.title && s.title !== "New Chat" ? s.title : "Untitled Conversation"}
+              title={
+                s.title && s.title !== "New Chat"
+                  ? s.title
+                  : "Untitled Conversation"
+              }
               active={s.id === currentSessionId}
               onClick={() => loadSession && loadSession(s.id)}
             />
@@ -106,9 +104,6 @@ const styles = {
     fontWeight: 500,
     cursor: "pointer",
     marginBottom: "10px",
-  },
-  upload: {
-    marginBottom: "12px",
   },
   history: {
     marginTop: "6px",

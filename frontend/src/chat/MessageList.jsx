@@ -12,33 +12,26 @@ export default function MessageList() {
 
   return (
     <div
+      data-chat-stream
       style={{
         flex: 1,
         overflowY: "auto",
-        padding: "32px 42px",
+        padding: "36px 48px",
       }}
-      data-chat-stream
     >
       {messages.map((m, i) => (
-        <div
+        <MessageRow
           key={i}
-          data-role={m.role}
-          style={{
-            display: "flex",
-            flexDirection: "column",
-          }}
-        >
-          <MessageRow
-            role={m.role}
-            content={m.content}
-            timestamp={
-              m.timestamp
-                ? new Date(m.timestamp).toLocaleTimeString()
-                : ""
-            }
-          />
-        </div>
+          role={m.role}
+          content={m.content}
+          timestamp={
+            m.timestamp
+              ? new Date(m.timestamp).toLocaleTimeString()
+              : ""
+          }
+        />
       ))}
+
       <div ref={bottomRef} />
     </div>
   );

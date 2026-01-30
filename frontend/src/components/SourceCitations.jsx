@@ -2,7 +2,13 @@ export default function SourceCitations({ sources = [] }) {
   if (!sources.length) {
     return (
       <div className="sources">
-        <p style={{ opacity: 0.6, fontSize: 13 }}>
+        <p
+          style={{
+            opacity: 0.6,
+            fontSize: 13,
+            fontStyle: "italic",
+          }}
+        >
           No sources available for this response.
         </p>
       </div>
@@ -13,9 +19,9 @@ export default function SourceCitations({ sources = [] }) {
     <div className="sources">
       <h4
         style={{
-          margin: "0 0 12px",
-          fontSize: 13,
-          letterSpacing: "0.04em",
+          margin: "0 0 14px",
+          fontSize: 12,
+          letterSpacing: "0.08em",
           textTransform: "uppercase",
           color: "var(--accent-main)",
         }}
@@ -27,7 +33,7 @@ export default function SourceCitations({ sources = [] }) {
         <div
           key={s.id || i}
           style={{
-            marginBottom: 14,
+            marginBottom: 16,
             paddingBottom: 14,
             borderBottom: "1px dashed var(--border-subtle)",
           }}
@@ -36,7 +42,7 @@ export default function SourceCitations({ sources = [] }) {
             style={{
               fontSize: 13,
               fontWeight: 600,
-              marginBottom: 4,
+              marginBottom: 6,
               color: "var(--text-primary)",
             }}
           >
@@ -52,7 +58,7 @@ export default function SourceCitations({ sources = [] }) {
           <div
             style={{
               fontSize: 12,
-              lineHeight: 1.6,
+              lineHeight: 1.65,
               color: "var(--text-secondary)",
             }}
           >

@@ -55,27 +55,28 @@ export default function Message({ role, content, citations = [] }) {
 
 const styles = {
   aiRoot: {
-    marginBottom: "28px",
+    marginBottom: "30px",
   },
   title: {
     fontSize: "20px",
     fontWeight: 600,
-    marginBottom: "14px",
+    marginBottom: "16px",
     color: "#f8fafc",
   },
   section: {
-    fontSize: "16px",
+    fontSize: "15.5px",
     fontWeight: 600,
     marginTop: "18px",
     marginBottom: "6px",
-    color: "#67e8f9", // cyan-teal accent
+    color: "#67e8f9",
+    letterSpacing: "0.2px",
   },
   body: {
     fontSize: "14.5px",
-    lineHeight: 1.7,
+    lineHeight: 1.75,
     color: "#e5e7eb",
   },
   text: {
-    marginBottom: "6px",
+    marginBottom: "8px",
   },
 };
