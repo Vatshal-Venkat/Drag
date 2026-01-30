@@ -16,5 +16,6 @@ const styles = {
     flexDirection: "column",
     height: "100vh",
     background: "#141414",
+    paddingBottom: "120px", // ⬅️ reserves space for dock
   },
 };

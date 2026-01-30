@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 
 export function useRagStream() {
   const [messages, setMessages] = useState([]);
@@ -7,6 +7,14 @@ export function useRagStream() {
   const [lastActivity, setLastActivity] = useState(Date.now());
 
   const controllerRef = useRef(null);
+  const hasEmittedFirstAnswerRef = useRef(false);
+
+  /* -------------------------------
+     Derived idle signal (Groq-style)
+     ------------------------------- */
+  const isIdle = useMemo(() => {
+    return Date.now() - lastActivity > 18000; // ~18s
+  }, [lastActivity]);
 
   async function ask(question, topK = 5) {
     if (!question?.trim()) return;
@@ -14,7 +22,9 @@ export function useRagStream() {
     setIsStreaming(true);
     setLastActivity(Date.now());
     setSources([]);
+    hasEmittedFirstAnswerRef.current = false;
 
+    // Push user + assistant shell
     setMessages((prev) => [
       ...prev,
       { role: "user", content: question },
@@ -54,6 +64,7 @@ export function useRagStream() {
 
           const payload = event.replace("data:", "").trim();
 
+          // END
           if (payload === "[DONE]") {
             setIsStreaming(false);
             return;
@@ -61,9 +72,15 @@ export function useRagStream() {
 
           const parsed = JSON.parse(payload);
 
+          /* ---------------- TOKEN STREAM ---------------- */
           if (parsed.type === "token") {
             assistantText += parsed.value;
             setLastActivity(Date.now());
+
+            // 🔑 First answer signal (once per question)
+            if (!hasEmittedFirstAnswerRef.current) {
+              hasEmittedFirstAnswerRef.current = true;
+            }
 
             setMessages((prev) => {
               const updated = [...prev];
@@ -75,6 +92,7 @@ export function useRagStream() {
             });
           }
 
+          /* ---------------- CITATIONS ---------------- */
           if (parsed.type === "citations") {
             setMessages((prev) => {
               const updated = [...prev];
@@ -86,6 +104,7 @@ export function useRagStream() {
             });
           }
 
+          /* ---------------- SOURCES ---------------- */
           if (parsed.type === "sources") {
             setSources(parsed.value || []);
           }
@@ -106,10 +125,11 @@ export function useRagStream() {
   }
 
   return {
-    messages,
-    sources,
+    messages,        // [{ role, content, citations }]
+    sources,         // [{ id, source, page, confidence, text }]
     isStreaming,
-    lastActivity, // 🔑 used for idle animations
+    lastActivity,    // raw activity timestamp
+    isIdle,          // 🔥 derived idle signal
     ask,
     stop,
   };

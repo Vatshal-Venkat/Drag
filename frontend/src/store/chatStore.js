@@ -26,6 +26,7 @@ export const useChatStore = create((set, get) => ({
   messages: [],
   loading: false,
   sessionSummaries: {},
+  hasOpenedSourcesForSession: {},
 
   /* ----------------- SESSIONS ----------------- */
   loadSessions: async () => {
@@ -103,6 +104,25 @@ export const useChatStore = create((set, get) => ({
         text,
         (token) => {
           buffer += token;
+
+          const {
+            hasOpenedSourcesForSession,
+            sourcesPanelOpen,
+          } = get();
+
+          // 🔥 AUTO-OPEN SOURCES (ONCE PER SESSION)
+          if (
+            !hasOpenedSourcesForSession[currentSessionId]
+          ) {
+            set((state) => ({
+              sourcesPanelOpen: true,
+              hasOpenedSourcesForSession: {
+                ...state.hasOpenedSourcesForSession,
+                [currentSessionId]: true,
+              },
+            }));
+          }
+
           set((state) => {
             const msgs = [...state.messages];
             msgs[msgs.length - 1].content = buffer;

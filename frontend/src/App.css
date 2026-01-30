@@ -280,3 +280,31 @@
   box-shadow: none;
   padding: 0;
 }
+
+
+/* ============================
+   Idle subtle life (Groq-style)
+   ============================ */
+[data-chat-stream]:not(:hover)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      400px 120px at 50% 100%,
+      rgba(45, 212, 191, 0.06),
+      transparent 70%
+    );
+  opacity: 0;
+  animation: idleGlow 8s ease-in-out infinite;
+}
+
+@keyframes idleGlow {
+  0%, 100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+}
