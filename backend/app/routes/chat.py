@@ -11,16 +11,20 @@ from app.utils.context_trimmer import trim_context
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
-# RAG prompts
+# Prompts
 RAG_QA_PROMPT = load_prompt("rag_qa_prompt.txt")
 RAG_SUMMARY_PROMPT = load_prompt("rag_summary_prompt.txt")
+CHAT_PROMPT = (
+    "You are a friendly, helpful AI assistant.\n"
+    "Respond naturally and conversationally.\n"
+    "Do not mention internal systems or documents.\n"
+)
 
+# --------------------------------------------------
+# Intent helpers
+# --------------------------------------------------
 
 def is_summary_intent(text: str) -> bool:
-    """
-    Lightweight intent detection for summary vs Q&A.
-    Biased toward Q&A for safety.
-    """
     summary_keywords = [
         "summarize",
         "summary",
@@ -31,16 +35,32 @@ def is_summary_intent(text: str) -> bool:
         "briefly explain",
         "high level",
     ]
-
     q = text.lower()
     return any(k in q for k in summary_keywords)
+
+
+def is_greeting_or_smalltalk(text: str) -> bool:
+    t = text.strip().lower()
+    return t in {"hi", "hello", "hey", "yo", "sup", "what"}
+
+
+def is_personal_query(text: str) -> bool:
+    keywords = [
+        "my resume",
+        "my projects",
+        "my skills",
+        "my experience",
+        "about me",
+        "my background",
+    ]
+    q = text.lower()
+    return any(k in q for k in keywords)
 
 
 @router.post("/stream")
 def chat_stream(payload: ChatRequest):
     """
-    RAG-focused, ChatGPT-style streaming chat endpoint (SSE).
-    Friendly, explanatory, and grounded in retrieved context.
+    Unified Chat + RAG streaming endpoint with document isolation.
     """
 
     # 1️⃣ Validate session
@@ -48,7 +68,7 @@ def chat_stream(payload: ChatRequest):
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    # 2️⃣ Append user message immediately
+    # 2️⃣ Append user message
     session_manager.append_message(
         session_id=payload.session_id,
         role="user",
@@ -61,38 +81,64 @@ def chat_stream(payload: ChatRequest):
         f'{m["role"]}: {m["content"]}' for m in memory_messages
     )
 
-    # 4️⃣ Always retrieve context (RAG-first)
-    contexts = retrieve(payload.user_text, k=5)
+    # --------------------------------------------------
+    # CHAT MODE (no retrieval)
+    # --------------------------------------------------
+    if is_greeting_or_smalltalk(payload.user_text):
+        prompt = CHAT_PROMPT + "\nUser: " + payload.user_text + "\nAssistant:"
 
-    # Token-aware trimming (char-based, model-agnostic)
-    context_text, used_docs = trim_context(contexts, max_chars=6000)
+        def event_generator():
+            for token in _stream_llm(prompt):
+                yield f"data: {json.dumps({'type': 'token', 'value': token})}\n\n"
+            yield "data: [DONE]\n\n"
 
-    # 🔹 Onboarding + no-context handling
+        return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+    # --------------------------------------------------
+    # RAG MODE (with document isolation)
+    # --------------------------------------------------
+
+    document_id = None
+    if is_personal_query(payload.user_text):
+        # Safe default: isolate to active document if present
+        document_id = session.get("active_document_id")
+
+    contexts = retrieve(
+        payload.user_text,
+        k=5,
+        document_id=document_id,
+    )
+
+    context_blocks, used_docs = trim_context(contexts, max_chars=6000)
+    context_text = "\n".join(c["text"] for c in context_blocks)
+
+    synthesis_hint = (
+        "\n\nThe context may include multiple sections. "
+        "Use only the parts relevant to the question."
+    )
+
     context_note = ""
     onboarding_message = ""
 
     if not context_text.strip():
         context_note = (
-            "\n\nNote: No relevant documents were retrieved for this query. "
-            "If appropriate, respond briefly and conversationally without "
-            "introducing factual claims."
+            "\n\nIf no relevant context is available, "
+            "respond briefly and conversationally without factual claims."
         )
-
         onboarding_message = (
-            "I don’t see any documents uploaded yet. "
-            "You can upload a file or ask a question about a document, "
-            "and I’ll help analyze it."
+            "I don’t see any relevant documents yet. "
+            "You can upload a file or ask about a document."
         )
 
-    # 5️⃣ Choose prompt based on intent
+    # 5️⃣ Choose prompt
     if is_summary_intent(payload.user_text):
         prompt = RAG_SUMMARY_PROMPT.format(
-            context=context_text
+            context=context_text + synthesis_hint
         )
     else:
         prompt = RAG_QA_PROMPT.format(
             memory=memory_text,
-            context=context_text + context_note,
+            context=context_text + synthesis_hint + context_note,
             question=payload.user_text,
         )
 
@@ -104,33 +150,33 @@ def chat_stream(payload: ChatRequest):
             for token in _stream_llm(prompt):
                 collected.append(token)
                 yield f"data: {json.dumps({'type': 'token', 'value': token})}\n\n"
-
         finally:
             full_answer = "".join(collected).strip()
 
-            # 🔹 Prepend onboarding message if needed
             if onboarding_message and full_answer:
                 full_answer = onboarding_message + "\n\n" + full_answer
 
-            # 7️⃣ Append grounding confidence line
-            if full_answer and used_docs > 0:
-                full_answer += (
-                    f"\n\n—\nAnswer grounded in "
-                    f"{used_docs} retrieved document"
-                    f"{'s' if used_docs > 1 else ''}."
-                )
+            # Inline citations (document-safe)
+            paragraphs = [p.strip() for p in full_answer.split("\n\n") if p.strip()]
+            cited_paragraphs = []
 
-            # 8️⃣ Append assistant message ONCE
-            if full_answer:
+            for idx, para in enumerate(paragraphs):
+                if idx < len(context_blocks):
+                    src = context_blocks[idx]
+                    citation = f"(Source: {src['source']}, page {src['page']})"
+                    cited_paragraphs.append(f"{para}\n{citation}")
+                else:
+                    cited_paragraphs.append(para)
+
+            final_answer = "\n\n".join(cited_paragraphs)
+
+            if final_answer:
                 session_manager.append_message(
                     session_id=payload.session_id,
                     role="assistant",
-                    content=full_answer,
+                    content=final_answer,
                 )
 
             yield "data: [DONE]\n\n"
 
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-    )
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
