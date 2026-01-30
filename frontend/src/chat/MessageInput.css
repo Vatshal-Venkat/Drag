@@ -1,0 +1,94 @@
+/* Dock */
+.altaric-dock {
+  left: 0;
+  right: 0;
+  z-index: 40;
+  display: flex;
+  justify-content: center;
+  pointer-events: auto;
+  background: linear-gradient(
+    180deg,
+    rgba(20, 20, 24, 0),
+    rgba(20, 20, 24, 0.85)
+  );
+}
+
+/* Width shell */
+.altaric-bar {
+  width: 70%;
+  min-width: 600px;
+  max-width: 880px;
+}
+
+/* Gradient frame */
+.altaric-gradient-border {
+  padding: 1px;
+  border-radius: 22px;
+  background: linear-gradient(
+    110deg,
+    rgba(0, 229, 201, 0.9),
+    rgba(26, 140, 255, 0.9)
+  );
+}
+
+/* Glass core */
+.altaric-glass {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: 20px;
+  background: #0f1720; /* solid, confident */
+}
+
+/* Textarea */
+.altaric-glass textarea {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  color: #e7ebef;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.altaric-glass textarea::placeholder {
+  color: rgba(200, 255, 248, 0.45);
+}
+
+/* + Button */
+.altaric-icon-button {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  width: 34px;
+  height: 34px;
+  color: #2dd4bf;
+  cursor: pointer;
+}
+
+/* Send */
+.altaric-send-button {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #00e5c9, #1a8cff);
+  border: none;
+  color: #001412;
+  font-size: 18px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.altaric-send-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 0 10px rgba(0, 229, 201, 0.25);
+}
+
+.altaric-glass:focus-within {
+  box-shadow:
+    0 0 0 1px rgba(0, 229, 201, 0.35),
+    0 0 14px rgba(0, 229, 201, 0.12);
+}
