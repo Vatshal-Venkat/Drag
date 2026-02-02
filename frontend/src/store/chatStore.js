@@ -2,20 +2,25 @@ import { create } from "zustand";
 import {
   createSession,
   fetchSessions,
+  streamChatMessage,
 } from "../services/chatApi";
-import { streamChatMessage } from "../services/chatApi";
 
 export const useChatStore = create((set, get) => ({
   /* ----------------- UI STATE ----------------- */
   sidebarOpen: true,
+
+  // 🔒 SOURCES PANEL IS PERMANENTLY DISABLED
   sourcesPanelOpen: false,
+
   hoveredSessionId: null,
 
   toggleSidebar: () =>
     set((s) => ({ sidebarOpen: !s.sidebarOpen })),
 
-  toggleSourcesPanel: () =>
-    set((s) => ({ sourcesPanelOpen: !s.sourcesPanelOpen })),
+  // 🚫 noop – panel cannot be opened accidentally
+  toggleSourcesPanel: () => {
+    /* intentionally disabled */
+  },
 
   setHoveredSession: (id) =>
     set({ hoveredSessionId: id }),
@@ -25,8 +30,10 @@ export const useChatStore = create((set, get) => ({
   currentSessionId: null,
   messages: [],
   loading: false,
-  error: null, // ✅ added (non-breaking)
+  error: null,
   sessionSummaries: {},
+
+  // 🔒 kept for compatibility but never used
   hasOpenedSourcesForSession: {},
 
   /* ----------------- SESSIONS ----------------- */
@@ -41,6 +48,7 @@ export const useChatStore = create((set, get) => ({
       sessions: [session, ...state.sessions],
       currentSessionId: session.id,
       messages: [],
+      sourcesPanelOpen: false, // double safety
     }));
     return session.id;
   },
@@ -49,6 +57,7 @@ export const useChatStore = create((set, get) => ({
     set({
       currentSessionId: sessionId,
       messages: [],
+      sourcesPanelOpen: false, // double safety
     });
   },
 
@@ -96,6 +105,7 @@ export const useChatStore = create((set, get) => ({
       messages: [...state.messages, userMsg, assistantMsg],
       loading: true,
       error: null,
+      sourcesPanelOpen: false, // 🔒 enforced every send
     }));
 
     let buffer = "";
@@ -107,32 +117,26 @@ export const useChatStore = create((set, get) => ({
         (token) => {
           buffer += token;
 
-          const {
-            hasOpenedSourcesForSession,
-          } = get();
-
-          if (!hasOpenedSourcesForSession[currentSessionId]) {
-            set((state) => ({
-              sourcesPanelOpen: true,
-              hasOpenedSourcesForSession: {
-                ...state.hasOpenedSourcesForSession,
-                [currentSessionId]: true,
-              },
-            }));
-          }
-
           set((state) => {
             const msgs = [...state.messages];
             msgs[msgs.length - 1].content = buffer;
-            return { messages: msgs };
+            return {
+              messages: msgs,
+              sourcesPanelOpen: false, // 🔒 enforced every token
+            };
           });
         },
-        () => set({ loading: false })
+        () =>
+          set({
+            loading: false,
+            sourcesPanelOpen: false,
+          })
       );
     } catch {
       set({
         loading: false,
         error: "stream_failed",
+        sourcesPanelOpen: false,
       });
     }
   },

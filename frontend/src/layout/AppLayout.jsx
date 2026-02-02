@@ -8,7 +8,9 @@ const MemoChatContainer = memo(ChatContainer);
 export default function AppLayout() {
   const sidebarOpen = useChatStore((s) => s.sidebarOpen);
   const toggleSidebar = useChatStore((s) => s.toggleSidebar);
-  const sourcesOpen = useChatStore((s) => s.sourcesPanelOpen);
+
+  // 🔴 sourcesPanelOpen intentionally ignored
+  // Right panel is deprecated but store key remains for future use
 
   return (
     <div style={styles.root}>
@@ -22,32 +24,21 @@ export default function AppLayout() {
         </div>
       )}
 
-      {/* MAIN CHAT */}
+      {/* MAIN CHAT – now full width */}
       <div
         style={{
           ...styles.main,
           marginLeft: sidebarOpen ? 260 : 0,
-          marginRight: sourcesOpen ? 360 : 0,
+          marginRight: 0, // 🔥 removed dead spacing
         }}
       >
-        {/* ⬇️ IMPORTANT WRAPPER */}
         <div style={styles.chatShell}>
           <MemoChatContainer />
         </div>
       </div>
 
-      {/* RIGHT SOURCES PANEL */}
-      <div
-        style={{
-          ...styles.sourcesPanel,
-          transform: sourcesOpen
-            ? "translateX(0)"
-            : "translateX(100%)",
-        }}
-      >
-        <div style={styles.sourcesHeader}>Sources</div>
-        <div id="sources-root" style={styles.sourcesBody} />
-      </div>
+      {/* 🚫 RIGHT SOURCES PANEL REMOVED FROM RENDER TREE
+          Kept styles below for future reuse if needed */}
     </div>
   );
 }
@@ -85,6 +76,8 @@ const styles = {
     zIndex: 30,
     color: "#67e8f9",
   },
+
+  /* ⬇️ kept intentionally (future feature / no deletion) */
   sourcesPanel: {
     position: "fixed",
     right: 0,

@@ -66,9 +66,6 @@ export default function MessageInput({ hasMessages }) {
       console.log("UPLOAD RESPONSE:", data);
 
       setFileState((s) => s && { ...s, status: "done" });
-      // Optional: if you want to use document_id later
-      // setDocumentId(data.document_id);
-
     } catch (err) {
       console.error("UPLOAD ERROR:", err);
       setFileState((s) => s && { ...s, status: "error" });
@@ -82,8 +79,10 @@ export default function MessageInput({ hasMessages }) {
     setFileState({ name: file.name, status: "uploading" });
     await uploadFile(file);
 
-    e.target.value = ""; // reset input for next selection
+    e.target.value = "";
   }
+
+  const isEmptyState = !text && !fileState && !loading && !listening;
 
   return (
     <div
@@ -168,7 +167,7 @@ export default function MessageInput({ hasMessages }) {
           </div>
         )}
 
-        {!text && !loading && (
+        {isEmptyState && (
           <div className="altaric-hints">
             ↵ Send · ⇧↵ New line · 🎤 Voice · /docs Search files
           </div>

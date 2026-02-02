@@ -68,14 +68,27 @@
 /* + Button */
 .altaric-icon-button {
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: none;                    /* removed border */
   border-radius: 10px;
-  width: 34px;
-  height: 34px;
+  width: 42px;
+  height: 42px;
+  font-size: 28px;                 /* bigger + */
   color: #2dd4bf;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.2s;
+}
+.altaric-icon-button:hover {
+  background: rgba(45, 212, 191, 0.1);
 }
 
+.altaric-icon-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 /* Voice */
 .altaric-voice-button {
   background: transparent;

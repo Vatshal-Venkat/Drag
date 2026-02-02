@@ -19,7 +19,10 @@ export default function Message({ role, content, citations = [] }) {
   // Inject citation markers inline
   citations.forEach((c) => {
     const marker = ` [${c.source_ids.map((id) => id + 1).join(",")}]`;
-    rendered = rendered.replace(c.sentence, c.sentence + marker);
+    rendered = rendered.replace(
+      c.sentence,
+      c.sentence + marker
+    );
   });
 
   const lines = rendered.split("\n").filter(Boolean);
@@ -28,10 +31,8 @@ export default function Message({ role, content, citations = [] }) {
 
   return (
     <div style={styles.aiRoot}>
-      {/* Title */}
       <div style={styles.title}>{title}</div>
 
-      {/* Body */}
       <div style={styles.body}>
         {body.map((line, i) => {
           if (line.endsWith(":")) {
