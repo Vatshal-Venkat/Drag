@@ -1,6 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useChatStore } from "../store/chatStore";
-import FileIngest from "../components/FileIngest";
 import { useVoiceInput } from "../hooks/useVoiceInput";
 import "./MessageInput.css";
 
@@ -15,11 +14,6 @@ export default function MessageInput({ hasMessages }) {
   const sendUserMessage = useChatStore((s) => s.sendUserMessage);
   const loading = useChatStore((s) => s.loading);
   const error = useChatStore((s) => s.error);
-
-  const { uploadFile, loading: uploading } = FileIngest({
-    onIngest: () =>
-      setFileState((s) => s && { ...s, status: "done" }),
-  });
 
   /* ---------------- Voice ---------------- */
   const {
@@ -51,18 +45,44 @@ export default function MessageInput({ hasMessages }) {
     await sendUserMessage(msg);
   }, [text, loading, sendUserMessage, stopVoice]);
 
+  const uploadFile = async (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch("http://127.0.0.1:8000/ingest/file", {
+        method: "POST",
+        body: formData,
+      });
+
+      console.log("UPLOAD STATUS:", res.status);
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || "Upload failed");
+      }
+
+      const data = await res.json();
+      console.log("UPLOAD RESPONSE:", data);
+
+      setFileState((s) => s && { ...s, status: "done" });
+      // Optional: if you want to use document_id later
+      // setDocumentId(data.document_id);
+
+    } catch (err) {
+      console.error("UPLOAD ERROR:", err);
+      setFileState((s) => s && { ...s, status: "error" });
+    }
+  };
+
   async function handleFileSelect(e) {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setFileState({ name: file.name, status: "uploading" });
-    try {
-      await uploadFile(file);
-    } catch {
-      setFileState({ name: file.name, status: "error" });
-    }
+    await uploadFile(file);
 
-    e.target.value = "";
+    e.target.value = ""; // reset input for next selection
   }
 
   return (
@@ -92,7 +112,7 @@ export default function MessageInput({ hasMessages }) {
             <button
               className="altaric-icon-button"
               onClick={() => fileRef.current.click()}
-              disabled={uploading || loading}
+              disabled={fileState?.status === "uploading" || loading}
             >
               +
             </button>
