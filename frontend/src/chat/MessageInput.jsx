@@ -10,15 +10,23 @@ export default function MessageInput({ hasMessages }) {
   const [text, setText] = useState("");
   const [fileState, setFileState] = useState(null);
 
-  const [compareMode, setCompareMode] = useState(false);
-  const [documentIds, setDocumentIds] = useState("");
-  const [useHumanFeedback, setUseHumanFeedback] = useState(true);
+  // ❌ REMOVED LOCAL compareMode STATE (WAS BREAKING SYNC)
+  const compareMode = useChatStore((s) => s.compareMode);
+  const selectedDocuments = useChatStore(
+    (s) => s.selectedDocuments
+  );
+
+  const useHumanFeedback = true; // unchanged behavior
 
   const textareaRef = useRef(null);
   const fileRef = useRef(null);
 
-  const sendUserMessage = useChatStore((s) => s.sendUserMessage);
-  const updateLastAssistant = useChatStore((s) => s.updateLastAssistant);
+  const sendUserMessage = useChatStore(
+    (s) => s.sendUserMessage
+  );
+  const updateLastAssistant = useChatStore(
+    (s) => s.updateLastAssistant
+  );
   const stopLoading = useChatStore((s) => s.stopLoading);
 
   const lastActiveDocument = useChatStore(
@@ -26,6 +34,10 @@ export default function MessageInput({ hasMessages }) {
   );
   const setLastActiveDocument = useChatStore(
     (s) => s.setLastActiveDocument
+  );
+
+  const registerDocument = useChatStore(
+    (s) => s.registerDocument
   );
 
   const loading = useChatStore((s) => s.loading);
@@ -41,6 +53,7 @@ export default function MessageInput({ hasMessages }) {
       setText((prev) => (prev ? prev + " " + spoken : spoken)),
   });
 
+  /* ---------------- Auto-grow textarea ---------------- */
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -49,6 +62,7 @@ export default function MessageInput({ hasMessages }) {
       Math.min(el.scrollHeight, MAX_TEXTAREA_HEIGHT) + "px";
   }, [text]);
 
+  /* ---------------- Send ---------------- */
   const handleSend = useCallback(async () => {
     if (loading || !text.trim()) return;
 
@@ -58,18 +72,14 @@ export default function MessageInput({ hasMessages }) {
     await sendUserMessage({
       question,
       compareMode,
-      documentIds: compareMode
-        ? documentIds.split(",").map((d) => d.trim()).filter(Boolean)
-        : null,
+      documentIds: compareMode ? selectedDocuments : null,
       useHumanFeedback,
     });
 
     await rag.ask({
       question,
       compareMode,
-      documentIds: compareMode
-        ? documentIds.split(",").map((d) => d.trim()).filter(Boolean)
-        : null,
+      documentIds: compareMode ? selectedDocuments : null,
       documentId: !compareMode ? lastActiveDocument : null,
       useHumanFeedback,
 
@@ -80,9 +90,10 @@ export default function MessageInput({ hasMessages }) {
 
       onSkip: () => {
         updateLastAssistant((m) => {
-          if (m)
+          if (m) {
             m.content =
               "Please upload a document to continue.";
+          }
         });
         stopLoading();
       },
@@ -93,12 +104,16 @@ export default function MessageInput({ hasMessages }) {
     text,
     loading,
     compareMode,
-    documentIds,
-    useHumanFeedback,
+    selectedDocuments,
     lastActiveDocument,
   ]);
 
+  /* ---------------- File Upload ---------------- */
   const uploadFile = async (file) => {
+    if (!file) return;
+
+    setFileState({ name: file.name, status: "uploading" });
+
     const formData = new FormData();
     formData.append("file", file);
 
@@ -108,28 +123,27 @@ export default function MessageInput({ hasMessages }) {
     );
 
     const data = await res.json();
-    if (data.document_id) {
-      setLastActiveDocument(data.document_id);
-    }
 
-    setFileState({ name: file.name, status: "done" });
+    if (data?.document_id) {
+      setLastActiveDocument(data.document_id);
+      registerDocument(data.document_id); // ✅ FIX
+      setFileState({ name: file.name, status: "done" });
+    } else {
+      setFileState({ name: file.name, status: "error" });
+    }
   };
 
   return (
     <div
-     className="altaric-dock"
+      className="altaric-dock"
       style={{
-       position: hasMessages ? "fixed" : "relative",
-       bottom: hasMessages ? 20 : "auto",
-     }}
+        position: hasMessages ? "fixed" : "relative",
+        bottom: hasMessages ? 20 : "auto",
+      }}
     >
-
       <div className="altaric-bar">
-
-        {/* CONTROLS */}
         <div className="altaric-gradient-border">
           <div className="altaric-glass">
-
             <input
               ref={fileRef}
               type="file"
@@ -143,6 +157,7 @@ export default function MessageInput({ hasMessages }) {
             <button
               className="altaric-icon-button"
               onClick={() => fileRef.current.click()}
+              disabled={loading}
             >
               +
             </button>
@@ -164,7 +179,10 @@ export default function MessageInput({ hasMessages }) {
             {voiceSupported && (
               <button
                 className="altaric-voice-button"
-                onClick={listening ? stopVoice : startVoice}
+                onClick={
+                  listening ? stopVoice : startVoice
+                }
+                disabled={loading}
               >
                 🎤
               </button>
@@ -173,12 +191,25 @@ export default function MessageInput({ hasMessages }) {
             <button
               className="altaric-send-button"
               onClick={handleSend}
+              disabled={loading}
             >
               ↑
             </button>
-
           </div>
         </div>
+
+        {/* ✅ FILE STATUS PILL (RESTORED) */}
+        {fileState && (
+          <div
+            className={`altaric-file-pill ${fileState.status}`}
+          >
+            {fileState.name}
+            {fileState.status === "uploading" &&
+              " · uploading"}
+            {fileState.status === "done" && " ✓"}
+            {fileState.status === "error" && " ⚠"}
+          </div>
+        )}
       </div>
     </div>
   );

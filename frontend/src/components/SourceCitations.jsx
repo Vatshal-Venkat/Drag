@@ -3,6 +3,11 @@ import { useState } from "react";
 export default function SourceCitations({ sources = [] }) {
   const [open, setOpen] = useState(false);
 
+  // ✅ NEW: graceful empty handling
+  if (!sources || sources.length === 0) {
+    return null;
+  }
+
   return (
     <div className="sources">
       <button
@@ -15,11 +20,18 @@ export default function SourceCitations({ sources = [] }) {
           cursor: "pointer",
           padding: 0,
           marginBottom: open ? 10 : 0,
+          display: "flex",               // ✅ NEW
+          alignItems: "center",          // ✅ NEW
+          gap: 6,                        // ✅ NEW
         }}
       >
+        {/* ✅ NEW: professional toggle text */}
         {open
-          ? "Hide source details ▲"
-          : `View source details (${sources.length}) ▼`}
+          ? "Hide sources"
+          : `View sources (${sources.length})`}
+        <span style={{ opacity: 0.6 }}>
+          {open ? "▲" : "▼"}
+        </span>
       </button>
 
       {open && (
@@ -39,12 +51,17 @@ export default function SourceCitations({ sources = [] }) {
                   fontWeight: 600,
                   marginBottom: 6,
                   color: "#e5e7eb",
+                  display: "flex",          // ✅ NEW
+                  alignItems: "center",     // ✅ NEW
+                  gap: 6,                   // ✅ NEW
                 }}
               >
-                [{i + 1}] {s.source}
+                <span>
+                  [{i + 1}] {s.source}
+                </span>
+
                 {s.page && (
                   <span style={{ opacity: 0.6 }}>
-                    {" "}
                     · Page {s.page}
                   </span>
                 )}

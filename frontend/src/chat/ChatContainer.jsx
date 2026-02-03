@@ -2,6 +2,8 @@ import { useChatStore } from "../store/chatStore";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
 
+const SIDEBAR_WIDTH = 260;
+
 export default function ChatContainer() {
   const messages = useChatStore((s) => s.messages);
   const sidebarOpen = useChatStore((s) => s.sidebarOpen);
@@ -13,6 +15,17 @@ export default function ChatContainer() {
         style={{
           ...styles.inner,
           maxWidth: sidebarOpen ? "900px" : "1100px",
+
+          /*
+            🔑 KEY FIX:
+            When sidebar is open, shift the chat column
+            by half the sidebar width so it stays visually centered
+            in the remaining space.
+          */
+          marginLeft: sidebarOpen
+            ? `calc(50% - ${SIDEBAR_WIDTH / 2}px)`
+            : "50%",
+          transform: "translateX(-50%)",
         }}
       >
         {!hasMessages && (
@@ -21,7 +34,8 @@ export default function ChatContainer() {
               What can I help you figure out?
             </h1>
             <p style={styles.subtitle}>
-              Ask anything — explanations, comparisons, or deep dives.
+              Ask anything — explanations, comparisons,
+              or deep dives.
             </p>
             <MessageInput hasMessages={false} />
           </div>
@@ -34,7 +48,7 @@ export default function ChatContainer() {
               <MessageList />
             </div>
 
-            {/* INPUT DOCK (FIXED HEIGHT) */}
+            {/* INPUT DOCK */}
             <div style={styles.inputDock}>
               <MessageInput hasMessages />
             </div>
@@ -52,20 +66,25 @@ const styles = {
     overflow: "hidden",
     position: "relative",
   },
+
   inner: {
-    margin: "0 auto",
     height: "100%",
     display: "flex",
     flexDirection: "column",
+    transition:
+      "max-width 0.35s ease, margin-left 0.35s ease",
   },
+
   messageArea: {
     flex: 1,
     overflowY: "auto",
     paddingBottom: 12,
   },
+
   inputDock: {
     flexShrink: 0,
   },
+
   emptyState: {
     flex: 1,
     display: "flex",
@@ -75,11 +94,13 @@ const styles = {
     gap: 18,
     textAlign: "center",
   },
+
   title: {
     fontSize: 28,
     fontWeight: 500,
     color: "#e7ebef",
   },
+
   subtitle: {
     fontSize: 14,
     color: "#9ca3af",

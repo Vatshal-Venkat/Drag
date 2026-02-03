@@ -23,10 +23,10 @@ export const useChatStore = create((set, get) => ({
   documents: [],
   selectedDocuments: [],
 
-  lastActiveDocument: null, // ✅ NEW
+  lastActiveDocument: null, // ✅ exists, untouched
 
   setLastActiveDocument: (docId) =>
-    set({ lastActiveDocument: docId }), // ✅ NEW
+    set({ lastActiveDocument: docId }),
 
   registerDocument: (docId) =>
     set((state) => ({
@@ -51,6 +51,16 @@ export const useChatStore = create((set, get) => ({
   messages: [],
   loading: false,
   error: null,
+
+  sessionSummaries: {}, // ✅ FIX: prevents ChatHistoryItem crash
+
+  setSessionSummary: (id, summary) =>
+    set((state) => ({
+      sessionSummaries: {
+        ...state.sessionSummaries,
+        [id]: summary,
+      },
+    })),
 
   /* ----------------- SESSIONS ----------------- */
   loadSessions: async () => {

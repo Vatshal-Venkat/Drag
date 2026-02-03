@@ -10,6 +10,7 @@ export default function MessageRow({
 }) {
   const isUser = role === "user";
   const [copied, setCopied] = useState(false);
+  const [hovered, setHovered] = useState(null);
 
   function handleCopy() {
     navigator.clipboard.writeText(content || "");
@@ -26,6 +27,22 @@ export default function MessageRow({
     console.log("HITL: correction requested");
     // 🔜 open correction UI later
   }
+
+  const iconBaseStyle = {
+    cursor: "pointer",
+    padding: "6px",
+    borderRadius: "8px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    transition: "all 0.2s ease",
+  };
+
+  const iconHoverStyle = {
+    background:
+      "linear-gradient(135deg, rgba(0,229,255,0.25), rgba(41,121,255,0.25))",
+    color: "#67e8f9",
+  };
 
   return (
     <div
@@ -52,7 +69,11 @@ export default function MessageRow({
         {isUser ? (
           <div>{content}</div>
         ) : (
-          <Message role={role} content={content} citations={citations} />
+          <Message
+            role={role}
+            content={content}
+            citations={citations}
+          />
         )}
 
         {/* ACTION BAR (AI ONLY) */}
@@ -60,32 +81,58 @@ export default function MessageRow({
           <div
             style={{
               display: "flex",
-              gap: "12px",
+              gap: "10px",
               marginTop: "10px",
-              fontSize: "12px",
               color: "#9ca3af",
             }}
           >
-            <span
-              style={{ cursor: "pointer" }}
+            {/* COPY */}
+            <div
+              style={{
+                ...iconBaseStyle,
+                ...(hovered === "copy"
+                  ? iconHoverStyle
+                  : {}),
+              }}
+              onMouseEnter={() => setHovered("copy")}
+              onMouseLeave={() => setHovered(null)}
               onClick={handleCopy}
+              title={copied ? "Copied" : "Copy"}
             >
-              {copied ? "Copied" : "Copy"}
-            </span>
+              📋
+            </div>
 
-            <span
-              style={{ cursor: "pointer" }}
+            {/* LIKE */}
+            <div
+              style={{
+                ...iconBaseStyle,
+                ...(hovered === "like"
+                  ? iconHoverStyle
+                  : {}),
+              }}
+              onMouseEnter={() => setHovered("like")}
+              onMouseLeave={() => setHovered(null)}
               onClick={handleApprove}
+              title="Helpful"
             >
-              👍 Helpful
-            </span>
+              👍
+            </div>
 
-            <span
-              style={{ cursor: "pointer" }}
+            {/* CORRECT */}
+            <div
+              style={{
+                ...iconBaseStyle,
+                ...(hovered === "correct"
+                  ? iconHoverStyle
+                  : {}),
+              }}
+              onMouseEnter={() => setHovered("correct")}
+              onMouseLeave={() => setHovered(null)}
               onClick={handleCorrect}
+              title="Suggest correction"
             >
-              ✏️ Correct
-            </span>
+              ✏️
+            </div>
           </div>
         )}
 
