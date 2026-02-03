@@ -12,6 +12,9 @@ from app.routes import chat, sessions, chat_stream
 
 from app.registry import document_registry
 
+from app.api import documents
+
+
 app = FastAPI(title="RAG Accelerator")
 
 document_registry.list_documents()
@@ -39,3 +42,4 @@ app.include_router(query_stream.router)   # /rag/query/stream
 app.include_router(sessions.router)     # /sessions
 app.include_router(chat.router)         # /chat/message
 app.include_router(chat_stream.router)    # /chat/stream
+app.include_router(documents.router)
