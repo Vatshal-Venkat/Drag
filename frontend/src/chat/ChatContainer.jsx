@@ -8,21 +8,11 @@ export default function ChatContainer() {
   const hasMessages = messages.length > 0;
 
   return (
-    <div
-      style={{
-        ...styles.container,
-        paddingLeft: 0,
-      }}
-    >
+    <div style={styles.container}>
       <div
         style={{
-          width: "100%",
+          ...styles.inner,
           maxWidth: sidebarOpen ? "900px" : "1100px",
-          margin: "0 auto",
-          transition: "max-width 0.35s ease",
-          display: "flex",
-          flexDirection: "column",
-          height: "100%",
         }}
       >
         {!hasMessages && (
@@ -39,8 +29,15 @@ export default function ChatContainer() {
 
         {hasMessages && (
           <>
-            <MessageList hasMessages />
-            <MessageInput hasMessages />
+            {/* MESSAGE LIST (SCROLLS) */}
+            <div style={styles.messageArea}>
+              <MessageList />
+            </div>
+
+            {/* INPUT DOCK (FIXED HEIGHT) */}
+            <div style={styles.inputDock}>
+              <MessageInput hasMessages />
+            </div>
           </>
         )}
       </div>
@@ -50,12 +47,25 @@ export default function ChatContainer() {
 
 const styles = {
   container: {
-    position: "relative",
     height: "100vh",
     background: "#141418",
     overflow: "hidden",
+    position: "relative",
   },
-
+  inner: {
+    margin: "0 auto",
+    height: "100%",
+    display: "flex",
+    flexDirection: "column",
+  },
+  messageArea: {
+    flex: 1,
+    overflowY: "auto",
+    paddingBottom: 12,
+  },
+  inputDock: {
+    flexShrink: 0,
+  },
   emptyState: {
     flex: 1,
     display: "flex",
@@ -65,13 +75,11 @@ const styles = {
     gap: 18,
     textAlign: "center",
   },
-
   title: {
     fontSize: 28,
     fontWeight: 500,
     color: "#e7ebef",
   },
-
   subtitle: {
     fontSize: 14,
     color: "#9ca3af",

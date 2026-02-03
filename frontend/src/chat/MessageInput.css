@@ -1,11 +1,17 @@
-/* Dock */
+/* =========================
+   Dock
+   ========================= */
 .altaric-dock {
+  position: fixed;                 /* ✅ FIX: restore layout context */
   left: 0;
   right: 0;
+  bottom: 20px;                    /* ✅ FIX: floating input bar */
   z-index: 40;
+
   display: flex;
   justify-content: center;
   pointer-events: auto;
+
   background: linear-gradient(
     180deg,
     rgba(20, 20, 24, 0),
@@ -13,7 +19,9 @@
   );
 }
 
-/* Width shell */
+/* =========================
+   Width shell
+   ========================= */
 .altaric-bar {
   width: 70%;
   min-width: 600px;
@@ -21,7 +29,9 @@
   position: relative;
 }
 
-/* Gradient frame */
+/* =========================
+   Gradient frame
+   ========================= */
 .altaric-gradient-border {
   padding: 1px;
   border-radius: 22px;
@@ -41,7 +51,9 @@
   );
 }
 
-/* Glass core */
+/* =========================
+   Glass core
+   ========================= */
 .altaric-glass {
   display: flex;
   align-items: flex-end;
@@ -51,7 +63,9 @@
   background: #0f1720;
 }
 
-/* Textarea */
+/* =========================
+   Textarea
+   ========================= */
 .altaric-glass textarea {
   flex: 1;
   background: transparent;
@@ -60,27 +74,35 @@
   resize: none;
   max-height: 140px;
   overflow-y: auto;
+
   color: #e7ebef;
   font-size: 15px;
   line-height: 1.4;
 }
 
-/* + Button */
+/* =========================
+   + Button
+   ========================= */
 .altaric-icon-button {
   background: transparent;
-  border: none;                    /* removed border */
+  border: none;
   border-radius: 10px;
+
   width: 42px;
   height: 42px;
-  font-size: 28px;                 /* bigger + */
+
+  font-size: 28px;
   color: #2dd4bf;
   cursor: pointer;
+
   display: flex;
   align-items: center;
   justify-content: center;
+
   padding: 0;
-  transition: background 0.2s;
+  transition: background 0.2s ease;
 }
+
 .altaric-icon-button:hover {
   background: rgba(45, 212, 191, 0.1);
 }
@@ -89,7 +111,10 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
-/* Voice */
+
+/* =========================
+   Voice button
+   ========================= */
 .altaric-voice-button {
   background: transparent;
   border: none;
@@ -103,20 +128,31 @@
   color: #34d399;
 }
 
-/* Send */
+/* =========================
+   Send button
+   ========================= */
 .altaric-send-button {
   width: 36px;
   height: 36px;
   border-radius: 12px;
+
   background: linear-gradient(135deg, #00e5c9, #1a8cff);
   border: none;
+
   color: #001412;
   font-size: 18px;
   font-weight: 600;
   cursor: pointer;
 }
 
-/* File pill */
+.altaric-send-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* =========================
+   File pill
+   ========================= */
 .altaric-file-pill {
   margin-top: 8px;
   font-size: 12px;
@@ -135,7 +171,9 @@
   color: #f59e0b;
 }
 
-/* Hints */
+/* =========================
+   Hints
+   ========================= */
 .altaric-hints {
   margin-top: 6px;
   font-size: 12px;

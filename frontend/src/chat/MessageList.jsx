@@ -17,7 +17,7 @@ export default function MessageList({ hasMessages }) {
           key={i}
           role={m.role}
           content={m.content}
-          citations={m.citations || []} // 🔑 PASS SOURCES
+          citations={m.citations || []}
           timestamp={
             m.timestamp
               ? new Date(m.timestamp).toLocaleTimeString()
@@ -36,5 +36,6 @@ const styles = {
     flex: 1,
     overflowY: "auto",
     padding: "36px 48px 180px",
+    pointerEvents: "auto",
   },
 };

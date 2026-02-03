@@ -102,32 +102,20 @@ export async function streamChatMessage(
           continue;
         }
 
-        /* --------------------
-           Token handling
-        -------------------- */
-        if (
-          parsed.type === "token" &&
-          typeof parsed.value === "string"
-        ) {
+        /* -------- TOKEN -------- */
+        if (parsed.type === "token" && typeof parsed.value === "string") {
           onToken(parsed.value);
         }
 
-        // fallback format support
         if (typeof parsed.token === "string") {
           onToken(parsed.token);
         }
 
-        /* --------------------
-           Citations handling
-        -------------------- */
-        if (
-          parsed.type === "citations" &&
-          Array.isArray(parsed.value)
-        ) {
+        /* -------- CITATIONS -------- */
+        if (parsed.type === "citations" && Array.isArray(parsed.value)) {
           collectedCitations = parsed.value;
         }
 
-        // fallback format support
         if (Array.isArray(parsed.citations)) {
           collectedCitations = parsed.citations;
         }
@@ -138,7 +126,6 @@ export async function streamChatMessage(
       console.error("SSE stream error:", err);
     }
   } finally {
-    // 🔒 guarantee completion
     if (!doneCalled) {
       onDone?.(collectedCitations);
     }

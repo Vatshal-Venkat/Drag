@@ -1,39 +1,56 @@
 import { create } from "zustand";
-import {
-  createSession,
-  fetchSessions,
-  streamChatMessage,
-} from "../services/chatApi";
+import { createSession, fetchSessions } from "../services/chatApi";
 
 export const useChatStore = create((set, get) => ({
   /* ----------------- UI STATE ----------------- */
   sidebarOpen: true,
-
-  // 🔒 SOURCES PANEL IS PERMANENTLY DISABLED
-  
   hoveredSessionId: null,
 
   toggleSidebar: () =>
     set((s) => ({ sidebarOpen: !s.sidebarOpen })),
 
-  // 🚫 noop – panel cannot be opened accidentally
-  toggleSourcesPanel: () => {
-    /* intentionally disabled */
-  },
-
   setHoveredSession: (id) =>
     set({ hoveredSessionId: id }),
 
-  /* ----------------- STATE ----------------- */
+  /* ----------------- MODES ----------------- */
+  compareMode: false,
+  hitlMode: false,
+
+  setCompareMode: (v) => set({ compareMode: v }),
+  setHitlMode: (v) => set({ hitlMode: v }),
+
+  /* ----------------- DOCUMENTS ----------------- */
+  documents: [],
+  selectedDocuments: [],
+
+  lastActiveDocument: null, // ✅ NEW
+
+  setLastActiveDocument: (docId) =>
+    set({ lastActiveDocument: docId }), // ✅ NEW
+
+  registerDocument: (docId) =>
+    set((state) => ({
+      documents: state.documents.includes(docId)
+        ? state.documents
+        : [...state.documents, docId].sort(),
+    })),
+
+  toggleDocumentSelection: (docId) =>
+    set((state) => ({
+      selectedDocuments: state.selectedDocuments.includes(docId)
+        ? state.selectedDocuments.filter((d) => d !== docId)
+        : [...state.selectedDocuments, docId],
+    })),
+
+  clearSelectedDocuments: () =>
+    set({ selectedDocuments: [] }),
+
+  /* ----------------- CHAT STATE ----------------- */
   sessions: [],
   currentSessionId: null,
   messages: [],
   loading: false,
   error: null,
-  sessionSummaries: {},
-
-  // 🔒 kept for compatibility but never used
-  hasOpenedSourcesForSession: {},
 
   /* ----------------- SESSIONS ----------------- */
   loadSessions: async () => {
@@ -47,7 +64,6 @@ export const useChatStore = create((set, get) => ({
       sessions: [session, ...state.sessions],
       currentSessionId: session.id,
       messages: [],
-      
     }));
     return session.id;
   },
@@ -56,53 +72,35 @@ export const useChatStore = create((set, get) => ({
     set({
       currentSessionId: sessionId,
       messages: [],
-      
     });
   },
 
   /* ----------------- MESSAGES ----------------- */
-  sendUserMessage: async (text) => {
-    if (!text.trim()) return;
+  sendUserMessage: async (input) => {
+    const payload =
+      typeof input === "string"
+        ? { question: input }
+        : input;
 
-    let { currentSessionId, sessions } = get();
+    if (!payload?.question?.trim()) return;
+
+    let { currentSessionId } = get();
 
     if (!currentSessionId) {
       currentSessionId = await get().startNewSession();
     }
 
-    const session = sessions.find((s) => s.id === currentSessionId);
-    if (session && (!session.title || session.title === "New Chat")) {
-      const title =
-        text.length > 48 ? text.slice(0, 48) + "…" : text;
-
-      set((state) => ({
-        sessions: state.sessions.map((s) =>
-          s.id === currentSessionId
-            ? { ...s, title }
-            : s
-        ),
-        sessionSummaries: {
-          ...state.sessionSummaries,
-          [currentSessionId]: title,
-        },
-      }));
-    }
-
     const userMsg = {
       role: "user",
-      content: text,
+      content: payload.question,
       timestamp: new Date().toISOString(),
     };
 
     const assistantMsg = {
       role: "assistant",
-      content: "",
+      content: "…",
       citations: [],
-      responseMeta: {
-        startedAt: Date.now(),
-        completedAt: null,
-        sourceCount: 0,
-      },
+      meta: payload,
       timestamp: new Date().toISOString(),
     };
 
@@ -110,58 +108,16 @@ export const useChatStore = create((set, get) => ({
       messages: [...state.messages, userMsg, assistantMsg],
       loading: true,
       error: null,
-      
     }));
-
-    let buffer = "";
-
-    try {
-      await streamChatMessage(
-        currentSessionId,
-        text,
-        (token) => {
-          buffer += token;
-
-          set((state) => {
-            const msgs = [...state.messages];
-            const last = msgs[msgs.length - 1];
-
-            last.content = buffer;
-
-            return {
-              messages: msgs,
-              
-            };
-          });
-        },
-
-        // 🔑 IMPORTANT: capture citations here
-        (citations = []) => {
-          set((state) => {
-            const msgs = [...state.messages];
-            const last = msgs[msgs.length - 1];
-
-            last.citations = citations;
-            last.responseMeta = {
-              ...last.responseMeta,
-              completedAt: Date.now(),
-              sourceCount: citations.length,
-            };
-
-            return {
-              messages: msgs,
-              loading: false,
-              
-            };
-          });
-        }
-      );
-    } catch {
-      set({
-        loading: false,
-        error: "stream_failed",
-        
-      });
-    }
   },
+
+  updateLastAssistant: (updater) =>
+    set((state) => {
+      const msgs = [...state.messages];
+      if (!msgs.length) return {};
+      updater(msgs[msgs.length - 1]);
+      return { messages: msgs };
+    }),
+
+  stopLoading: () => set({ loading: false }),
 }));

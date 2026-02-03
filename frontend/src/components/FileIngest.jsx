@@ -1,6 +1,11 @@
 import { useState, useRef } from "react";
+import { useChatStore } from "../store/chatStore";
 
-export default function FileIngest({ onIngest }) {
+export default function FileIngest() {
+  const registerDocument = useChatStore(
+    (s) => s.registerDocument
+  );
+
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
@@ -22,23 +27,12 @@ export default function FileIngest({ onIngest }) {
         body: formData,
       });
 
-      console.log("UPLOAD STATUS:", res.status);
-
       const data = await res.json();
-      console.log("UPLOAD RESPONSE:", data);
+      if (!res.ok) throw new Error(data?.detail);
 
-      if (!res.ok) {
-        throw new Error(data?.detail || "Upload failed");
-      }
-
-      // protect against missing fields
-      if (onIngest && typeof onIngest === "function") {
-        onIngest(data.document_id);
-      }
-
+      registerDocument(data.document_id);
       setStatus(`Indexed ${data.chunks ?? "?"} chunks`);
-    } catch (err) {
-      console.error("UPLOAD ERROR:", err);
+    } catch {
       setStatus("Upload failed");
     } finally {
       setLoading(false);
@@ -56,22 +50,15 @@ export default function FileIngest({ onIngest }) {
         onChange={(e) => setFile(e.target.files[0])}
       />
 
-      <button
-        className="ingest-select"
-        onClick={() => fileInputRef.current.click()}
-      >
+      <button onClick={() => fileInputRef.current.click()}>
         {file ? file.name : "Choose File"}
       </button>
 
-      <button
-        className="ingest-upload"
-        onClick={uploadFile}
-        disabled={!file || loading}
-      >
+      <button onClick={uploadFile} disabled={!file || loading}>
         {loading ? "Uploading…" : "Upload"}
       </button>
 
-      {status && <div className="ingest-status">{status}</div>}
+      {status && <div>{status}</div>}
     </div>
   );
 }

@@ -1,51 +1,94 @@
 import { useState, useRef, useMemo } from "react";
 
 export function useRagStream() {
-  const [messages, setMessages] = useState([]);
   const [sources, setSources] = useState([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [lastActivity, setLastActivity] = useState(Date.now());
 
   const controllerRef = useRef(null);
-  const hasEmittedFirstAnswerRef = useRef(false);
 
   /* -------------------------------
-     Derived idle signal (Groq-style)
+     Derived idle signal
      ------------------------------- */
   const isIdle = useMemo(() => {
-    return Date.now() - lastActivity > 18000; // ~18s
+    return Date.now() - lastActivity > 18000;
   }, [lastActivity]);
 
-  async function ask(question, topK = 5) {
-    if (!question?.trim()) return;
+  async function ask({
+    question,
+    topK = 5,
+    documentId = null,
+    documentIds = null,
+    compareMode = false,
+    useHumanFeedback = true,
+
+    onToken,
+    onCitations,
+    onSources,
+    onDone,
+    onSkip, // 🆕 NEW (OPTIONAL)
+  }) {
+    if (!question || !question.trim()) {
+      console.warn("ask() called with empty question");
+      onSkip?.("empty_question");
+      onDone?.();
+      return;
+    }
+
+    // 🚨 HARD CONTRACT ENFORCEMENT (BACKEND SAFE)
+    if (!compareMode && !documentId) {
+      console.error(
+        "RAG BLOCKED: document_id is required for non-comparison queries"
+      );
+      onSkip?.("missing_document_id"); // 🆕 notify caller
+      onDone?.();                      // 🆕 ensure UI unlocks
+      return;
+    }
+
+    if (compareMode && (!Array.isArray(documentIds) || documentIds.length === 0)) {
+      console.error(
+        "RAG BLOCKED: document_ids[] required for comparison queries"
+      );
+      onSkip?.("missing_document_ids"); // 🆕 notify caller
+      onDone?.();                       // 🆕 ensure UI unlocks
+      return;
+    }
 
     setIsStreaming(true);
     setLastActivity(Date.now());
     setSources([]);
-    hasEmittedFirstAnswerRef.current = false;
-
-    // Push user + assistant shell
-    setMessages((prev) => [
-      ...prev,
-      { role: "user", content: question },
-      { role: "assistant", content: "", citations: [] },
-    ]);
 
     controllerRef.current = new AbortController();
 
     try {
       const response = await fetch(
-        "http://localhost:8000/query/stream",
+        "http://localhost:8000/rag/query/stream",
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+          },
+          signal: controllerRef.current.signal,
           body: JSON.stringify({
             query: question,
             top_k: topK,
+            document_id: compareMode ? null : documentId,
+            document_ids: compareMode ? documentIds : null,
+            compare_mode: compareMode,
+            use_human_feedback: useHumanFeedback,
           }),
-          signal: controllerRef.current.signal,
         }
       );
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error("RAG HTTP ERROR:", response.status, errText);
+        throw new Error("Failed to start RAG stream");
+      }
+
+      if (!response.body) {
+        throw new Error("No response body for RAG stream");
+      }
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder("utf-8");
@@ -64,49 +107,33 @@ export function useRagStream() {
 
           const payload = event.replace("data:", "").trim();
 
-          // END
           if (payload === "[DONE]") {
             setIsStreaming(false);
+            onDone?.();
             return;
           }
 
-          const parsed = JSON.parse(payload);
+          let parsed;
+          try {
+            parsed = JSON.parse(payload);
+          } catch {
+            console.warn("Non-JSON SSE payload:", payload);
+            continue;
+          }
 
-          /* ---------------- TOKEN STREAM ---------------- */
           if (parsed.type === "token") {
-            assistantText += parsed.value;
+            assistantText += parsed.value || "";
             setLastActivity(Date.now());
-
-            // 🔑 First answer signal (once per question)
-            if (!hasEmittedFirstAnswerRef.current) {
-              hasEmittedFirstAnswerRef.current = true;
-            }
-
-            setMessages((prev) => {
-              const updated = [...prev];
-              updated[updated.length - 1] = {
-                ...updated[updated.length - 1],
-                content: assistantText,
-              };
-              return updated;
-            });
+            onToken?.(assistantText);
           }
 
-          /* ---------------- CITATIONS ---------------- */
           if (parsed.type === "citations") {
-            setMessages((prev) => {
-              const updated = [...prev];
-              updated[updated.length - 1] = {
-                ...updated[updated.length - 1],
-                citations: parsed.value || [],
-              };
-              return updated;
-            });
+            onCitations?.(parsed.value || []);
           }
 
-          /* ---------------- SOURCES ---------------- */
           if (parsed.type === "sources") {
             setSources(parsed.value || []);
+            onSources?.(parsed.value || []);
           }
         }
       }
@@ -114,6 +141,7 @@ export function useRagStream() {
       if (err.name !== "AbortError") {
         console.error("RAG stream error:", err);
       }
+      onSkip?.("stream_error"); // 🆕 optional visibility
     } finally {
       setIsStreaming(false);
     }
@@ -125,11 +153,10 @@ export function useRagStream() {
   }
 
   return {
-    messages,        // [{ role, content, citations }]
-    sources,         // [{ id, source, page, confidence, text }]
+    sources,
     isStreaming,
-    lastActivity,    // raw activity timestamp
-    isIdle,          // 🔥 derived idle signal
+    lastActivity,
+    isIdle,
     ask,
     stop,
   };

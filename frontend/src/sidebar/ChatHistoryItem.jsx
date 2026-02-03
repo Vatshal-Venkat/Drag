@@ -2,8 +2,9 @@ import { useChatStore } from "../store/chatStore";
 
 export default function ChatHistoryItem({ title, active, onClick, id }) {
   const summary = useChatStore(
-    (s) => s.sessionSummaries[id]
+    (s) => s.sessionSummaries?.[id] || null
   );
+
   const setHovered = useChatStore(
     (s) => s.setHoveredSession
   );
@@ -19,12 +20,11 @@ export default function ChatHistoryItem({ title, active, onClick, id }) {
       }}
     >
       {active && <div style={styles.activeBar} />}
+
       <span style={styles.title}>{title}</span>
 
       {summary && (
-        <div style={styles.preview}>
-          {summary}
-        </div>
+        <div style={styles.preview}>{summary}</div>
       )}
     </div>
   );
@@ -34,9 +34,9 @@ const styles = {
   item: {
     position: "relative",
     padding: "10px 10px 10px 14px",
-    borderRadius: "6px",
+    borderRadius: 6,
     cursor: "pointer",
-    marginBottom: "6px",
+    marginBottom: 6,
   },
   title: {
     fontSize: 13,
@@ -49,7 +49,6 @@ const styles = {
     marginTop: 6,
     fontSize: 11,
     color: "#9aa7b2",
-    lineHeight: 1.4,
   },
   activeBar: {
     position: "absolute",
@@ -57,7 +56,6 @@ const styles = {
     top: 6,
     bottom: 6,
     width: 3,
-    borderRadius: 2,
     background: "linear-gradient(180deg, #00e5ff, #2979ff)",
   },
 };

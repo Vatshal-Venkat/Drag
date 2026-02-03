@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useChatStore } from "../store/chatStore";
 import { useVoiceInput } from "../hooks/useVoiceInput";
+import { useRagStream } from "../hooks/useRagStream";
 import "./MessageInput.css";
 
 const MAX_TEXTAREA_HEIGHT = 140;
@@ -8,14 +9,28 @@ const MAX_TEXTAREA_HEIGHT = 140;
 export default function MessageInput({ hasMessages }) {
   const [text, setText] = useState("");
   const [fileState, setFileState] = useState(null);
+
+  const [compareMode, setCompareMode] = useState(false);
+  const [documentIds, setDocumentIds] = useState("");
+  const [useHumanFeedback, setUseHumanFeedback] = useState(true);
+
   const textareaRef = useRef(null);
   const fileRef = useRef(null);
 
   const sendUserMessage = useChatStore((s) => s.sendUserMessage);
-  const loading = useChatStore((s) => s.loading);
-  const error = useChatStore((s) => s.error);
+  const updateLastAssistant = useChatStore((s) => s.updateLastAssistant);
+  const stopLoading = useChatStore((s) => s.stopLoading);
 
-  /* ---------------- Voice ---------------- */
+  const lastActiveDocument = useChatStore(
+    (s) => s.lastActiveDocument
+  );
+  const setLastActiveDocument = useChatStore(
+    (s) => s.setLastActiveDocument
+  );
+
+  const loading = useChatStore((s) => s.loading);
+  const rag = useRagStream();
+
   const {
     supported: voiceSupported,
     listening,
@@ -24,94 +39,110 @@ export default function MessageInput({ hasMessages }) {
   } = useVoiceInput({
     onResult: (spoken) =>
       setText((prev) => (prev ? prev + " " + spoken : spoken)),
-    onEnd: () => {},
   });
 
-  /* ---------------- Auto-grow textarea ---------------- */
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
-
     el.style.height = "auto";
     el.style.height =
       Math.min(el.scrollHeight, MAX_TEXTAREA_HEIGHT) + "px";
   }, [text]);
 
   const handleSend = useCallback(async () => {
-    if (!text.trim() || loading) return;
-    stopVoice();
-    const msg = text;
+    if (loading || !text.trim()) return;
+
+    const question = text.trim();
     setText("");
-    await sendUserMessage(msg);
-  }, [text, loading, sendUserMessage, stopVoice]);
+
+    await sendUserMessage({
+      question,
+      compareMode,
+      documentIds: compareMode
+        ? documentIds.split(",").map((d) => d.trim()).filter(Boolean)
+        : null,
+      useHumanFeedback,
+    });
+
+    await rag.ask({
+      question,
+      compareMode,
+      documentIds: compareMode
+        ? documentIds.split(",").map((d) => d.trim()).filter(Boolean)
+        : null,
+      documentId: !compareMode ? lastActiveDocument : null,
+      useHumanFeedback,
+
+      onToken: (content) =>
+        updateLastAssistant((m) => {
+          if (m) m.content = content;
+        }),
+
+      onSkip: () => {
+        updateLastAssistant((m) => {
+          if (m)
+            m.content =
+              "Please upload a document to continue.";
+        });
+        stopLoading();
+      },
+
+      onDone: stopLoading,
+    });
+  }, [
+    text,
+    loading,
+    compareMode,
+    documentIds,
+    useHumanFeedback,
+    lastActiveDocument,
+  ]);
 
   const uploadFile = async (file) => {
     const formData = new FormData();
     formData.append("file", file);
 
-    try {
-      const res = await fetch("http://127.0.0.1:8000/ingest/file", {
-        method: "POST",
-        body: formData,
-      });
+    const res = await fetch(
+      "http://127.0.0.1:8000/ingest/file",
+      { method: "POST", body: formData }
+    );
 
-      console.log("UPLOAD STATUS:", res.status);
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.detail || "Upload failed");
-      }
-
-      const data = await res.json();
-      console.log("UPLOAD RESPONSE:", data);
-
-      setFileState((s) => s && { ...s, status: "done" });
-    } catch (err) {
-      console.error("UPLOAD ERROR:", err);
-      setFileState((s) => s && { ...s, status: "error" });
+    const data = await res.json();
+    if (data.document_id) {
+      setLastActiveDocument(data.document_id);
     }
+
+    setFileState({ name: file.name, status: "done" });
   };
-
-  async function handleFileSelect(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setFileState({ name: file.name, status: "uploading" });
-    await uploadFile(file);
-
-    e.target.value = "";
-  }
-
-  const isEmptyState = !text && !fileState && !loading && !listening;
 
   return (
     <div
-      className="altaric-dock"
+     className="altaric-dock"
       style={{
-        position: hasMessages ? "fixed" : "relative",
-        bottom: hasMessages ? 20 : "auto",
-        transition: "all 0.35s ease",
-      }}
+       position: hasMessages ? "fixed" : "relative",
+       bottom: hasMessages ? 20 : "auto",
+     }}
     >
+
       <div className="altaric-bar">
-        <div
-          className={`altaric-gradient-border ${
-            error ? "altaric-border-error" : ""
-          }`}
-        >
+
+        {/* CONTROLS */}
+        <div className="altaric-gradient-border">
           <div className="altaric-glass">
+
             <input
               ref={fileRef}
               type="file"
               accept=".pdf,.doc,.docx"
-              style={{ display: "none" }}
-              onChange={handleFileSelect}
+              hidden
+              onChange={(e) =>
+                uploadFile(e.target.files[0])
+              }
             />
 
             <button
               className="altaric-icon-button"
               onClick={() => fileRef.current.click()}
-              disabled={fileState?.status === "uploading" || loading}
             >
               +
             </button>
@@ -119,9 +150,7 @@ export default function MessageInput({ hasMessages }) {
             <textarea
               ref={textareaRef}
               value={text}
-              placeholder={
-                listening ? "Listening…" : "Ask Altaric AI…"
-              }
+              placeholder="Ask Altaric AI…"
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
@@ -134,44 +163,22 @@ export default function MessageInput({ hasMessages }) {
 
             {voiceSupported && (
               <button
-                className={`altaric-voice-button ${
-                  listening ? "listening" : ""
-                }`}
+                className="altaric-voice-button"
                 onClick={listening ? stopVoice : startVoice}
-                disabled={loading}
-                title="Voice input"
               >
                 🎤
               </button>
             )}
 
             <button
-              onClick={handleSend}
-              disabled={loading || !text.trim()}
               className="altaric-send-button"
-              style={{
-                opacity: loading || !text.trim() ? 0.4 : 1,
-              }}
+              onClick={handleSend}
             >
               ↑
             </button>
+
           </div>
         </div>
-
-        {fileState && (
-          <div className={`altaric-file-pill ${fileState.status}`}>
-            {fileState.name}
-            {fileState.status === "uploading" && " · processing"}
-            {fileState.status === "done" && " ✓"}
-            {fileState.status === "error" && " ⚠"}
-          </div>
-        )}
-
-        {isEmptyState && (
-          <div className="altaric-hints">
-            ↵ Send · ⇧↵ New line · 🎤 Voice · /docs Search files
-          </div>
-        )}
       </div>
     </div>
   );

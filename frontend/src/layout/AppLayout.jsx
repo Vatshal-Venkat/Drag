@@ -9,9 +9,6 @@ export default function AppLayout() {
   const sidebarOpen = useChatStore((s) => s.sidebarOpen);
   const toggleSidebar = useChatStore((s) => s.toggleSidebar);
 
-  
-  // Right panel is deprecated but store key remains for future use
-
   return (
     <div style={styles.root}>
       {/* LEFT SIDEBAR */}
@@ -19,26 +16,34 @@ export default function AppLayout() {
 
       {/* FLOATING SIDEBAR HANDLE */}
       {!sidebarOpen && (
-        <div style={styles.sidebarHandle} onClick={toggleSidebar}>
+        <div
+          style={styles.sidebarHandle}
+          onClick={toggleSidebar}
+        >
           ❯
         </div>
       )}
 
-      {/* MAIN CHAT – now full width */}
+      {/* MAIN CHAT */}
       <div
         style={{
           ...styles.main,
           marginLeft: sidebarOpen ? 260 : 0,
-          marginRight: 0, // 🔥 removed dead spacing
+          marginRight: 0,
         }}
       >
-        <div style={styles.chatShell}>
+        <div
+          style={{
+            ...styles.chatShell,
+            pointerEvents: "auto",     // 🔑 allow interaction
+            zIndex: 1,
+          }}
+        >
           <MemoChatContainer />
         </div>
       </div>
 
-      {/* 🚫 RIGHT SOURCES PANEL REMOVED FROM RENDER TREE
-          Kept styles below for future reuse if needed */}
+      {/* 🚫 RIGHT SOURCES PANEL REMOVED FROM RENDER TREE */}
     </div>
   );
 }
@@ -52,16 +57,21 @@ const styles = {
     overflow: "hidden",
     position: "relative",
   },
+
   main: {
     flex: 1,
     height: "100%",
     background: "#141414",
     transition: "margin 0.25s ease",
+    position: "relative",
+    zIndex: 1,
   },
+
   chatShell: {
     position: "relative",
     height: "100%",
   },
+
   sidebarHandle: {
     position: "fixed",
     left: 0,
@@ -91,6 +101,7 @@ const styles = {
     display: "flex",
     flexDirection: "column",
   },
+
   sourcesHeader: {
     padding: "14px 18px",
     fontSize: 14,
@@ -98,6 +109,7 @@ const styles = {
     borderBottom: "1px solid #1f2937",
     color: "#67e8f9",
   },
+
   sourcesBody: {
     flex: 1,
     overflowY: "auto",

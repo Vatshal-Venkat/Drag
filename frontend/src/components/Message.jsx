@@ -1,7 +1,4 @@
 export default function Message({ role, content, citations = [] }) {
-  /* ============================
-     USER MESSAGE
-     ============================ */
   if (role === "user") {
     return (
       <div className="user-card">
@@ -10,15 +7,14 @@ export default function Message({ role, content, citations = [] }) {
     );
   }
 
-  /* ============================
-     ASSISTANT MESSAGE
-     ============================ */
+  let rendered = content || "";
 
-  let rendered = content;
-
-  // Inject citation markers inline
+  // Inject citation markers inline (safe pass)
   citations.forEach((c) => {
-    const marker = ` [${c.source_ids.map((id) => id + 1).join(",")}]`;
+    if (!c?.sentence) return;
+    const marker = ` [${(c.source_ids || [])
+      .map((id) => id + 1)
+      .join(",")}]`;
     rendered = rendered.replace(
       c.sentence,
       c.sentence + marker
@@ -26,11 +22,9 @@ export default function Message({ role, content, citations = [] }) {
   });
 
   const lines = rendered.split("\n").filter(Boolean);
-
   const lead = lines[0] || "";
   const body = lines.slice(1);
 
-  // 🔥 Detect simple greetings (ChatGPT-style response)
   const isGreeting =
     lead.length <= 20 &&
     /^(hi|hello|hey|hai|hii|yo|sup|good morning|good evening)/i.test(
@@ -39,7 +33,6 @@ export default function Message({ role, content, citations = [] }) {
 
   return (
     <div style={styles.aiRoot}>
-      {/* Lead / Greeting */}
       <div
         style={{
           ...styles.lead,
@@ -51,7 +44,6 @@ export default function Message({ role, content, citations = [] }) {
         {lead}
       </div>
 
-      {/* Body */}
       <div style={styles.body}>
         {body.map((line, i) => {
           if (line.endsWith(":")) {
@@ -86,7 +78,6 @@ const styles = {
     marginBottom: "30px",
   },
 
-  // 🔥 Flattened to ChatGPT-like scale
   lead: {
     fontSize: "15px",
     fontWeight: 500,
@@ -95,7 +86,6 @@ const styles = {
     lineHeight: 1.6,
   },
 
-  // Headings use weight, NOT size
   section: {
     fontSize: "14px",
     fontWeight: 600,

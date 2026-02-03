@@ -1,3 +1,4 @@
+import { useState } from "react";
 import Message from "../components/Message";
 import SourceCitations from "../components/SourceCitations";
 
@@ -8,6 +9,23 @@ export default function MessageRow({
   timestamp,
 }) {
   const isUser = role === "user";
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy() {
+    navigator.clipboard.writeText(content || "");
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1200);
+  }
+
+  function handleApprove() {
+    console.log("HITL: approved answer");
+    // 🔜 wired later to backend
+  }
+
+  function handleCorrect() {
+    console.log("HITL: correction requested");
+    // 🔜 open correction UI later
+  }
 
   return (
     <div
@@ -27,17 +45,48 @@ export default function MessageRow({
           whiteSpace: "pre-wrap",
           wordBreak: "break-word",
           lineHeight: 1.65,
+          position: "relative",
         }}
       >
         {/* MESSAGE CONTENT */}
         {isUser ? (
           <div>{content}</div>
         ) : (
-          <Message
-            role={role}
-            content={content}
-            citations={citations}
-          />
+          <Message role={role} content={content} citations={citations} />
+        )}
+
+        {/* ACTION BAR (AI ONLY) */}
+        {!isUser && content && (
+          <div
+            style={{
+              display: "flex",
+              gap: "12px",
+              marginTop: "10px",
+              fontSize: "12px",
+              color: "#9ca3af",
+            }}
+          >
+            <span
+              style={{ cursor: "pointer" }}
+              onClick={handleCopy}
+            >
+              {copied ? "Copied" : "Copy"}
+            </span>
+
+            <span
+              style={{ cursor: "pointer" }}
+              onClick={handleApprove}
+            >
+              👍 Helpful
+            </span>
+
+            <span
+              style={{ cursor: "pointer" }}
+              onClick={handleCorrect}
+            >
+              ✏️ Correct
+            </span>
+          </div>
         )}
 
         {/* SOURCES SECTION */}
