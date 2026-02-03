@@ -2,6 +2,8 @@ import { useEffect } from "react";
 import { useChatStore } from "../store/chatStore";
 import ChatHistoryItem from "./ChatHistoryItem";
 
+
+
 export default function Sidebar() {
   const {
     sessions,
@@ -11,7 +13,7 @@ export default function Sidebar() {
     loadSession,
     sidebarOpen,
     toggleSidebar,
-
+    
     compareMode,
     hitlMode,
     setCompareMode,
@@ -20,11 +22,13 @@ export default function Sidebar() {
     documents,
     selectedDocuments,
     toggleDocumentSelection,
+    loadDocuments,
   } = useChatStore();
 
   useEffect(() => {
     loadSessions();
-  }, [loadSessions]);
+    loadDocuments(); 
+  }, [loadSessions, loadDocuments]);
 
   return (
     <div
@@ -74,26 +78,24 @@ export default function Sidebar() {
       {/* COMPARE DOCUMENTS */}
       {compareMode && (
         <div style={styles.section}>
-          <div style={styles.sectionTitle}>
-            Documents
-          </div>
-
-          {documents.length === 0 && (
-            <div style={styles.emptyDocs}>
-              No documents uploaded
+          <div style={styles.sectionTitle}>Documents</div>
+      
+          {!documents.length && (
+            <div style={{ fontSize: 12, opacity: 0.5 }}>
+              No documents uploaded yet
             </div>
           )}
-
+      
           {documents.map((doc) => (
-            <label key={doc} style={styles.docItem}>
+            <label key={doc.document_id} style={styles.docItem}>
               <input
                 type="checkbox"
-                checked={selectedDocuments.includes(doc)}
+                checked={selectedDocuments.includes(doc.document_id)}
                 onChange={() =>
-                  toggleDocumentSelection(doc)
+                  toggleDocumentSelection(doc.document_id)
                 }
               />
-              <span>{doc}</span>
+              {doc.document_id}
             </label>
           ))}
         </div>
@@ -249,4 +251,12 @@ const styles = {
     opacity: 0.5,
     marginLeft: 4,
   },
+    docItem: {
+    display: "flex",
+    gap: 8,
+    fontSize: 12,
+    marginBottom: 6,
+    color: "#e5e7eb",
+  },
+
 };

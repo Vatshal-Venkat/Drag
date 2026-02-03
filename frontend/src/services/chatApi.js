@@ -39,6 +39,14 @@ export async function fetchSession(sessionId) {
 /* =========================
    Chat Streaming API (SSE)
 ========================= */
+export async function fetchDocuments() {
+  const res = await fetch("http://localhost:8000/documents");
+  if (!res.ok) {
+    throw new Error("Failed to fetch documents");
+  }
+  return res.json();
+}
+
 
 export async function streamChatMessage(
   sessionId,

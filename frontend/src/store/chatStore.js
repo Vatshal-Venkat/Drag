@@ -1,6 +1,9 @@
 import { create } from "zustand";
 import { createSession, fetchSessions } from "../services/chatApi";
 
+import { fetchDocuments } from "../services/chatApi";
+
+
 export const useChatStore = create((set, get) => ({
   /* ----------------- UI STATE ----------------- */
   sidebarOpen: true,
@@ -130,4 +133,26 @@ export const useChatStore = create((set, get) => ({
     }),
 
   stopLoading: () => set({ loading: false }),
+
+  /* ----------------- DOCUMENTS ----------------- */
+  documents: [],
+  selectedDocuments: [],
+
+  loadDocuments: async () => {
+    const res = await fetchDocuments();
+    set({ documents: res.documents || [] });
+  },
+
+  /* ----------------- SESSIONS ----------------- */
+  
+  loadSessions: async () => {
+    const sessions = await fetchSessions();
+    set({ sessions });
+  
+    
+    const docs = await fetchDocuments();
+    set({ documents: docs.documents || [] });
+  },
+
+
 }));
