@@ -3,6 +3,11 @@ from fastapi.responses import StreamingResponse
 import json
 from typing import Any
 
+from app.memory.summary_memory import (
+    load_summary,
+    update_summary,
+)
+
 from app.schemas.rag import QueryRequest
 from app.services.retriever import (
     retrieve_context,
@@ -98,6 +103,14 @@ def query_rag_stream(req: QueryRequest):
         ):
             full_answer += token
             yield f"data: {json.dumps({'type': 'token', 'value': token})}\n\n"
+
+        
+        previous_summary = load_summary()
+        update_summary(
+            previous_summary,
+            req.query,
+            full_answer,
+        )
 
         # 2️⃣ Sentence-level citations
         citations = generate_sentence_citations(full_answer, contexts)

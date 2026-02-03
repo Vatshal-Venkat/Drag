@@ -4,7 +4,7 @@ from app.services.file_loader import extract_text_from_file
 from app.services.chunker import chunk_text
 from app.services.embeddings import embed_texts
 from app.vectorstore.store_manager import get_store_for_document
-
+from app.registry.document_registry import register_document
 router = APIRouter()
 
 
@@ -50,6 +50,14 @@ def ingest_file(file: UploadFile = File(...)):
         metadatas=all_metadata,
     )
     store.save()
+
+
+
+    register_document(
+        document_id=file.filename,
+        pages=len(set(m["page"] for m in all_metadata if m["page"] is not None)),
+        chunks=len(all_chunks),
+    )
 
     return {
         "status": "ok",

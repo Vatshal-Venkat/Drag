@@ -10,7 +10,11 @@ from app.api import ingest, health, query_stream
 # Chat routes
 from app.routes import chat, sessions, chat_stream
 
+from app.registry import document_registry
+
 app = FastAPI(title="RAG Accelerator")
+
+document_registry.list_documents()
 
 # -------------------------
 # CORS (frontend support)

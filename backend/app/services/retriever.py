@@ -1,6 +1,8 @@
 from typing import List, Dict, Optional
 from collections import defaultdict
 
+from app.memory.summary_memory import load_summary
+
 from app.services.embeddings import embed_query
 from app.vectorstore.store_manager import (
     get_store_for_document,
@@ -38,6 +40,7 @@ def _is_conceptual_query(query: str) -> bool:
 # --------------------------------------------------
 
 def retrieve_context(
+        
     query: str,
     top_k: int,
     document_id: str,
@@ -46,6 +49,12 @@ def retrieve_context(
     query_embedding = embed_query(query)
 
     results = store.search(query_embedding, k=top_k)
+    
+
+    memory = load_summary()
+    if memory:
+        query = f"[Conversation memory]\n{memory}\n\n[User query]\n{query}"
+
 
     contexts: List[Dict] = []
     for r in results:
