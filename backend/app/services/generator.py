@@ -1,9 +1,15 @@
-from typing import List, Dict, Iterator
+from typing import List, Dict, Iterator, Optional
 import re
 import textwrap
 
 from app.llm.groq import groq_stream, groq_chat
 from app.config import GROQ_MODEL, LLM_TEMPERATURE
+
+# NOTE: HITL injection is optional and non-breaking
+try:
+    from app.services.hitl import inject_human_feedback
+except Exception:
+    inject_human_feedback = None
 
 
 # -------------------------------------------------
@@ -26,6 +32,24 @@ Content:
         blocks.append(textwrap.dedent(block).strip())
 
     return "\n\n---\n\n".join(blocks)
+
+
+def _build_comparison_context(
+    grouped_contexts: Dict[str, List[Dict]]
+) -> str:
+    """
+    Build structured context grouped per document
+    for comparison prompts.
+    """
+
+    sections = []
+
+    for doc_id, contexts in grouped_contexts.items():
+        header = f"\n=== Document: {doc_id} ===\n"
+        body = _build_context(contexts) if contexts else "No relevant content found."
+        sections.append(header + body)
+
+    return "\n\n".join(sections)
 
 
 # -------------------------------------------------
@@ -60,12 +84,20 @@ def _stream_llm(prompt: str) -> Iterator[str]:
 # Answer generation (STREAMING + INLINE CITATIONS)
 # -------------------------------------------------
 
-def stream_answer(query: str, contexts: List[Dict]) -> Iterator[str]:
+def stream_answer(
+    query: str,
+    contexts: List[Dict],
+    *,
+    use_human_feedback: bool = True,
+) -> Iterator[str]:
     if not contexts:
         yield "Based on the provided documents, no relevant information was found."
         return
 
-    # Pre-assign citation IDs
+    # Optional HITL injection (safe, additive)
+    if use_human_feedback and inject_human_feedback:
+        contexts = inject_human_feedback(query, contexts)
+
     citation_map = {
         idx + 1: ctx for idx, ctx in enumerate(contexts)
     }
@@ -99,7 +131,6 @@ Answer:
         buffer += token
         yield token
 
-        # Emit inline citations at sentence boundaries
         if sentence_end.search(buffer):
             top_sources = sorted(
                 citation_map.items(),
@@ -113,6 +144,57 @@ Answer:
 
             yield citation_tag
             buffer = ""
+
+
+# -------------------------------------------------
+# 🔹 NEW: COMPARISON ANSWER GENERATION
+# -------------------------------------------------
+
+def stream_comparison_answer(
+    query: str,
+    grouped_contexts: Dict[str, List[Dict]],
+) -> Iterator[str]:
+    """
+    Generate a structured comparison across documents.
+    """
+
+    context_block = _build_comparison_context(grouped_contexts)
+
+    system_prompt = """You are a strict RAG assistant.
+
+Task:
+Compare the documents using ONLY the provided context.
+
+Rules:
+1. Do NOT hallucinate
+2. Do NOT assume missing information
+3. Clearly separate similarities, differences, and conflicts
+4. Reference documents explicitly
+"""
+
+    user_prompt = f"""
+Documents Context:
+{context_block}
+
+Comparison Question:
+{query}
+
+Provide the answer in the following structure:
+
+Similarities:
+- ...
+
+Differences:
+- ...
+
+Conflicts (if any):
+- ...
+"""
+
+    full_prompt = f"{system_prompt}\n\n{user_prompt}".strip()
+
+    for token in _stream_llm(full_prompt):
+        yield token
 
 
 # -------------------------------------------------

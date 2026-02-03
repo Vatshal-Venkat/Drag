@@ -55,11 +55,43 @@ def retrieve_context(
             "source": r.get("source", "unknown"),
             "page": r.get("page"),
             "confidence": r.get("confidence", 0.0),
+            "document_id": document_id,
         }
         if context["text"]:
             contexts.append(context)
 
     return contexts
+
+
+# --------------------------------------------------
+# 🔹 NEW: EXPLICIT MULTI-DOCUMENT RETRIEVAL (COMPARISON)
+# --------------------------------------------------
+
+def retrieve_for_comparison(
+    query: str,
+    top_k: int,
+    document_ids: List[str],
+) -> Dict[str, List[Dict]]:
+    """
+    Retrieve contexts independently for each document.
+    Used ONLY in compare_mode.
+    """
+
+    results: Dict[str, List[Dict]] = {}
+
+    for doc_id in document_ids:
+        try:
+            contexts = retrieve_context(
+                query=query,
+                top_k=top_k,
+                document_id=doc_id,
+            )
+            results[doc_id] = contexts
+        except Exception:
+            # Fail-safe: one bad document should not kill comparison
+            results[doc_id] = []
+
+    return results
 
 
 # --------------------------------------------------
@@ -73,7 +105,7 @@ def retrieve(
 ) -> List[Dict]:
     """
     Document-isolated by default.
-    Multi-document only when document_id is None.
+    Hybrid multi-document retrieval only when document_id is None.
     """
 
     # -------------------------------
@@ -107,7 +139,6 @@ def retrieve(
         bm25 = get_bm25_for_store(store)
         bm25_scores = bm25.get_scores(query_tokens)
         max_bm25 = float(bm25_scores.max()) if len(bm25_scores) > 0 else 1.0
-
 
         store_id = store.store_dir
 
