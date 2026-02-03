@@ -4,9 +4,6 @@ const API_BASE = "http://localhost:8000";
    Session APIs (JSON)
 ========================= */
 
-/**
- * Create a new chat session
- */
 export async function createSession() {
   const res = await fetch(`${API_BASE}/sessions/new`, {
     method: "POST",
@@ -19,9 +16,6 @@ export async function createSession() {
   return await res.json();
 }
 
-/**
- * Fetch all sessions
- */
 export async function fetchSessions() {
   const res = await fetch(`${API_BASE}/sessions`);
 
@@ -32,9 +26,6 @@ export async function fetchSessions() {
   return await res.json();
 }
 
-/**
- * Fetch one session
- */
 export async function fetchSession(sessionId) {
   const res = await fetch(`${API_BASE}/sessions/${sessionId}`);
 
@@ -49,15 +40,14 @@ export async function fetchSession(sessionId) {
    Chat Streaming API (SSE)
 ========================= */
 
-/**
- * Stream chat response from backend (/chat/stream)
- */
 export async function streamChatMessage(
   sessionId,
   userText,
   onToken,
   onDone
 ) {
+  const controller = new AbortController();
+
   const res = await fetch(`${API_BASE}/chat/stream`, {
     method: "POST",
     headers: {
@@ -68,6 +58,7 @@ export async function streamChatMessage(
       session_id: sessionId,
       user_text: userText,
     }),
+    signal: controller.signal,
   });
 
   if (!res.ok || !res.body) {
@@ -77,27 +68,80 @@ export async function streamChatMessage(
   const reader = res.body.getReader();
   const decoder = new TextDecoder("utf-8");
 
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
+  let buffer = "";
+  let collectedCitations = [];
+  let doneCalled = false;
 
-    const chunk = decoder.decode(value, { stream: true });
-    const events = chunk.split("\n\n").filter(Boolean);
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
 
-    for (const event of events) {
-      if (!event.startsWith("data:")) continue;
+      buffer += decoder.decode(value, { stream: true });
 
-      const payload = event.replace("data:", "").trim();
+      let boundary;
+      while ((boundary = buffer.indexOf("\n\n")) !== -1) {
+        const rawEvent = buffer.slice(0, boundary);
+        buffer = buffer.slice(boundary + 2);
 
-      if (payload === "[DONE]") {
-        onDone?.();
-        return;
-      }
+        if (!rawEvent.startsWith("data:")) continue;
 
-      const parsed = JSON.parse(payload);
-      if (parsed.type === "token") {
-        onToken(parsed.value);
+        const payload = rawEvent.replace("data:", "").trim();
+
+        if (payload === "[DONE]") {
+          doneCalled = true;
+          onDone?.(collectedCitations);
+          controller.abort();
+          return;
+        }
+
+        let parsed;
+        try {
+          parsed = JSON.parse(payload);
+        } catch {
+          continue;
+        }
+
+        /* --------------------
+           Token handling
+        -------------------- */
+        if (
+          parsed.type === "token" &&
+          typeof parsed.value === "string"
+        ) {
+          onToken(parsed.value);
+        }
+
+        // fallback format support
+        if (typeof parsed.token === "string") {
+          onToken(parsed.token);
+        }
+
+        /* --------------------
+           Citations handling
+        -------------------- */
+        if (
+          parsed.type === "citations" &&
+          Array.isArray(parsed.value)
+        ) {
+          collectedCitations = parsed.value;
+        }
+
+        // fallback format support
+        if (Array.isArray(parsed.citations)) {
+          collectedCitations = parsed.citations;
+        }
       }
     }
+  } catch (err) {
+    if (err.name !== "AbortError") {
+      console.error("SSE stream error:", err);
+    }
+  } finally {
+    // 🔒 guarantee completion
+    if (!doneCalled) {
+      onDone?.(collectedCitations);
+    }
+    reader.releaseLock();
   }
 }

@@ -11,15 +11,13 @@ export default function MessageList({ hasMessages }) {
   }, [messages.length]);
 
   return (
-    <div
-      data-chat-stream
-      style={styles.stream}
-    >
+    <div data-chat-stream style={styles.stream}>
       {messages.map((m, i) => (
         <MessageRow
           key={i}
           role={m.role}
           content={m.content}
+          citations={m.citations || []} // 🔑 PASS SOURCES
           timestamp={
             m.timestamp
               ? new Date(m.timestamp).toLocaleTimeString()
@@ -36,7 +34,7 @@ export default function MessageList({ hasMessages }) {
 const styles = {
   stream: {
     flex: 1,
-    overflowY: "auto",          // ✅ scrolling restored
-    padding: "36px 48px 180px", // ✅ space for input bar
+    overflowY: "auto",
+    padding: "36px 48px 180px",
   },
 };

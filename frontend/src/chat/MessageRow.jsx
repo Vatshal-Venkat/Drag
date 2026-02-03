@@ -1,20 +1,25 @@
-import { useChatStore } from "../store/chatStore";
+import Message from "../components/Message";
+import SourceCitations from "../components/SourceCitations";
 
-export default function MessageRow({ role, content, timestamp }) {
+export default function MessageRow({
+  role,
+  content,
+  citations = [],
+  timestamp,
+}) {
   const isUser = role === "user";
-  const toggleSources = useChatStore((s) => s.toggleSourcesPanel);
 
   return (
     <div
       style={{
         display: "flex",
         justifyContent: isUser ? "flex-end" : "flex-start",
-        marginBottom: isUser ? "18px" : "28px",
+        marginBottom: isUser ? "16px" : "26px",
       }}
     >
       <div
         style={{
-          maxWidth: "72%",
+          maxWidth: isUser ? "70%" : "62%",
           padding: isUser ? "12px 14px" : "0px",
           background: isUser ? "#1f2933" : "transparent",
           color: "#e5e7eb",
@@ -24,26 +29,38 @@ export default function MessageRow({ role, content, timestamp }) {
           lineHeight: 1.65,
         }}
       >
-        <div>{content}</div>
+        {/* MESSAGE CONTENT */}
+        {isUser ? (
+          <div>{content}</div>
+        ) : (
+          <Message
+            role={role}
+            content={content}
+            citations={citations}
+          />
+        )}
 
-        {/* Assistant controls */}
-        {!isUser && (
-          <div
-            onClick={toggleSources}
-            style={{
-              marginTop: 12,
-              fontSize: 12,
-              color: "#67e8f9",
-              cursor: "pointer",
-              width: "fit-content",
-              opacity: 0.85,
-            }}
-          >
-            View sources →
+        {/* SOURCES SECTION */}
+        {!isUser && citations.length > 0 && (
+          <div style={{ marginTop: "12px" }}>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: "#9ca3af",
+                marginBottom: 4,
+                letterSpacing: "0.04em",
+                textTransform: "uppercase",
+              }}
+            >
+              Sources used
+            </div>
+
+            <SourceCitations sources={citations} />
           </div>
         )}
 
-        {/* Timestamp */}
+        {/* TIMESTAMP */}
         {timestamp && isUser && (
           <div
             style={{

@@ -10,8 +10,7 @@ export const useChatStore = create((set, get) => ({
   sidebarOpen: true,
 
   // 🔒 SOURCES PANEL IS PERMANENTLY DISABLED
-  sourcesPanelOpen: false,
-
+  
   hoveredSessionId: null,
 
   toggleSidebar: () =>
@@ -48,7 +47,7 @@ export const useChatStore = create((set, get) => ({
       sessions: [session, ...state.sessions],
       currentSessionId: session.id,
       messages: [],
-      sourcesPanelOpen: false, // double safety
+      
     }));
     return session.id;
   },
@@ -57,7 +56,7 @@ export const useChatStore = create((set, get) => ({
     set({
       currentSessionId: sessionId,
       messages: [],
-      sourcesPanelOpen: false, // double safety
+      
     });
   },
 
@@ -98,6 +97,12 @@ export const useChatStore = create((set, get) => ({
     const assistantMsg = {
       role: "assistant",
       content: "",
+      citations: [],
+      responseMeta: {
+        startedAt: Date.now(),
+        completedAt: null,
+        sourceCount: 0,
+      },
       timestamp: new Date().toISOString(),
     };
 
@@ -105,7 +110,7 @@ export const useChatStore = create((set, get) => ({
       messages: [...state.messages, userMsg, assistantMsg],
       loading: true,
       error: null,
-      sourcesPanelOpen: false, // 🔒 enforced every send
+      
     }));
 
     let buffer = "";
@@ -119,24 +124,43 @@ export const useChatStore = create((set, get) => ({
 
           set((state) => {
             const msgs = [...state.messages];
-            msgs[msgs.length - 1].content = buffer;
+            const last = msgs[msgs.length - 1];
+
+            last.content = buffer;
+
             return {
               messages: msgs,
-              sourcesPanelOpen: false, // 🔒 enforced every token
+              
             };
           });
         },
-        () =>
-          set({
-            loading: false,
-            sourcesPanelOpen: false,
-          })
+
+        // 🔑 IMPORTANT: capture citations here
+        (citations = []) => {
+          set((state) => {
+            const msgs = [...state.messages];
+            const last = msgs[msgs.length - 1];
+
+            last.citations = citations;
+            last.responseMeta = {
+              ...last.responseMeta,
+              completedAt: Date.now(),
+              sourceCount: citations.length,
+            };
+
+            return {
+              messages: msgs,
+              loading: false,
+              
+            };
+          });
+        }
       );
     } catch {
       set({
         loading: false,
         error: "stream_failed",
-        sourcesPanelOpen: false,
+        
       });
     }
   },

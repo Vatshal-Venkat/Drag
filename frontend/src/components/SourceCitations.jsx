@@ -3,25 +3,8 @@ import { useState } from "react";
 export default function SourceCitations({ sources = [] }) {
   const [open, setOpen] = useState(false);
 
-  if (!sources.length) {
-    return (
-      <div className="sources">
-        <p
-          style={{
-            opacity: 0.5,
-            fontSize: 12,
-            fontStyle: "italic",
-            marginTop: 8,
-          }}
-        >
-          No sources available.
-        </p>
-      </div>
-    );
-  }
-
   return (
-    <div className="sources" style={{ marginTop: 12 }}>
+    <div className="sources">
       <button
         onClick={() => setOpen(!open)}
         style={{
@@ -31,14 +14,16 @@ export default function SourceCitations({ sources = [] }) {
           color: "#67e8f9",
           cursor: "pointer",
           padding: 0,
-          marginBottom: open ? 12 : 0,
+          marginBottom: open ? 10 : 0,
         }}
       >
-        {open ? "Hide sources ▲" : `View sources (${sources.length}) ▼`}
+        {open
+          ? "Hide source details ▲"
+          : `View source details (${sources.length}) ▼`}
       </button>
 
       {open && (
-        <div>
+        <div style={{ marginTop: 8 }}>
           {sources.map((s, i) => (
             <div
               key={s.id || i}
@@ -53,6 +38,7 @@ export default function SourceCitations({ sources = [] }) {
                   fontSize: 13,
                   fontWeight: 600,
                   marginBottom: 6,
+                  color: "#e5e7eb",
                 }}
               >
                 [{i + 1}] {s.source}
@@ -68,7 +54,7 @@ export default function SourceCitations({ sources = [] }) {
                 style={{
                   fontSize: 12,
                   lineHeight: 1.6,
-                  opacity: 0.8,
+                  opacity: 0.85,
                 }}
               >
                 {s.text?.slice(0, 200)}…

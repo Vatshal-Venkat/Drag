@@ -260,3 +260,39 @@ h1, h2, h3, h4, h5 {
   pointer-events: none;
   z-index: -1;
 }
+/* ============================
+   🔥 ChatGPT-style typography normalization
+   ============================ */
+
+/* Prevent headings from feeling like document titles */
+h1 {
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+h2 {
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+h3, h4, h5 {
+  font-size: var(--text-md);
+  font-weight: 500;
+}
+
+/* Ensure paragraphs stay calm */
+p, div {
+  font-size: inherit;
+}
+
+/* Assistant message smoothing */
+.ai-glow,
+.ai-glow * {
+  line-height: 1.65;
+}
+
+/* Prevent greeting responses from inflating */
+.chat-greeting {
+  font-size: var(--text-md);
+  font-weight: 400;
+}

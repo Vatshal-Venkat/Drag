@@ -24,7 +24,7 @@ export default function Sidebar() {
     >
       {/* Header */}
       <div style={styles.header}>
-        <span style={styles.brand}>AI-DOC</span>
+        <span style={styles.brand}>ECHO</span>
         <button style={styles.collapseBtn} onClick={toggleSidebar}>
           {sidebarOpen ? "⟨" : "⟩"}
         </button>

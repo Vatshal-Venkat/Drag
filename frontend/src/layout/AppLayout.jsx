@@ -9,7 +9,7 @@ export default function AppLayout() {
   const sidebarOpen = useChatStore((s) => s.sidebarOpen);
   const toggleSidebar = useChatStore((s) => s.toggleSidebar);
 
-  // 🔴 sourcesPanelOpen intentionally ignored
+  
   // Right panel is deprecated but store key remains for future use
 
   return (

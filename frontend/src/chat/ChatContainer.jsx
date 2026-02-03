@@ -11,13 +11,13 @@ export default function ChatContainer() {
     <div
       style={{
         ...styles.container,
-        paddingLeft: 0, // 🔥 layout already handles sidebar offset
+        paddingLeft: 0,
       }}
     >
       <div
         style={{
           width: "100%",
-          maxWidth: sidebarOpen ? "900px" : "1200px",
+          maxWidth: sidebarOpen ? "900px" : "1100px",
           margin: "0 auto",
           transition: "max-width 0.35s ease",
           display: "flex",
@@ -27,7 +27,12 @@ export default function ChatContainer() {
       >
         {!hasMessages && (
           <div style={styles.emptyState}>
-            <h1 style={styles.title}>What can I help with?</h1>
+            <h1 style={styles.title}>
+              What can I help you figure out?
+            </h1>
+            <p style={styles.subtitle}>
+              Ask anything — explanations, comparisons, or deep dives.
+            </p>
             <MessageInput hasMessages={false} />
           </div>
         )}
@@ -50,18 +55,27 @@ const styles = {
     background: "#141418",
     overflow: "hidden",
   },
+
   emptyState: {
     flex: 1,
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
-    gap: 28,
+    gap: 18,
+    textAlign: "center",
   },
+
   title: {
     fontSize: 28,
     fontWeight: 500,
     color: "#e7ebef",
-    textAlign: "center",
+  },
+
+  subtitle: {
+    fontSize: 14,
+    color: "#9ca3af",
+    maxWidth: 420,
+    lineHeight: 1.6,
   },
 };
