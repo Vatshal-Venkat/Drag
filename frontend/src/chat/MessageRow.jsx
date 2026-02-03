@@ -18,29 +18,31 @@ export default function MessageRow({
     setTimeout(() => setCopied(false), 1200);
   }
 
-  function handleApprove() {
-    console.log("HITL: approved answer");
-    // 🔜 wired later to backend
+  function handleLike() {
+    console.log("Feedback: like");
+    // 🔜 wire to backend later
   }
 
-  function handleCorrect() {
-    console.log("HITL: correction requested");
-    // 🔜 open correction UI later
+  function handleDislike() {
+    console.log("Feedback: dislike");
+    // 🔜 wire to backend later
   }
 
   const iconBaseStyle = {
-    cursor: "pointer",
-    padding: "6px",
-    borderRadius: "8px",
+    width: 28,
+    height: 28,
+    borderRadius: 8,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    transition: "all 0.2s ease",
+    cursor: "pointer",
+    color: "#94a3b8",
+    transition: "all 0.18s ease",
   };
 
   const iconHoverStyle = {
     background:
-      "linear-gradient(135deg, rgba(0,229,255,0.25), rgba(41,121,255,0.25))",
+      "linear-gradient(135deg, rgba(0,229,255,0.18), rgba(41,121,255,0.18))",
     color: "#67e8f9",
   };
 
@@ -81,57 +83,51 @@ export default function MessageRow({
           <div
             style={{
               display: "flex",
-              gap: "10px",
-              marginTop: "10px",
-              color: "#9ca3af",
+              gap: "8px",
+              marginTop: "8px",
+              opacity: 0.85,
             }}
           >
             {/* COPY */}
             <div
               style={{
                 ...iconBaseStyle,
-                ...(hovered === "copy"
-                  ? iconHoverStyle
-                  : {}),
+                ...(hovered === "copy" ? iconHoverStyle : {}),
               }}
               onMouseEnter={() => setHovered("copy")}
               onMouseLeave={() => setHovered(null)}
               onClick={handleCopy}
               title={copied ? "Copied" : "Copy"}
             >
-              📋
+              ⧉
             </div>
 
             {/* LIKE */}
             <div
               style={{
                 ...iconBaseStyle,
-                ...(hovered === "like"
-                  ? iconHoverStyle
-                  : {}),
+                ...(hovered === "like" ? iconHoverStyle : {}),
               }}
               onMouseEnter={() => setHovered("like")}
               onMouseLeave={() => setHovered(null)}
-              onClick={handleApprove}
-              title="Helpful"
+              onClick={handleLike}
+              title="Like"
             >
               👍
             </div>
 
-            {/* CORRECT */}
+            {/* DISLIKE */}
             <div
               style={{
                 ...iconBaseStyle,
-                ...(hovered === "correct"
-                  ? iconHoverStyle
-                  : {}),
+                ...(hovered === "dislike" ? iconHoverStyle : {}),
               }}
-              onMouseEnter={() => setHovered("correct")}
+              onMouseEnter={() => setHovered("dislike")}
               onMouseLeave={() => setHovered(null)}
-              onClick={handleCorrect}
-              title="Suggest correction"
+              onClick={handleDislike}
+              title="Dislike"
             >
-              ✏️
+              👎
             </div>
           </div>
         )}
