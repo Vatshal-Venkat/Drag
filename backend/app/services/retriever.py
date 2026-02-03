@@ -106,7 +106,8 @@ def retrieve(
 
         bm25 = get_bm25_for_store(store)
         bm25_scores = bm25.get_scores(query_tokens)
-        max_bm25 = max(bm25_scores) if bm25_scores else 1.0
+        max_bm25 = float(bm25_scores.max()) if len(bm25_scores) > 0 else 1.0
+
 
         store_id = store.store_dir
 
