@@ -1,12 +1,11 @@
 from typing import List, Dict, Optional
 from collections import defaultdict
 
-from rank_bm25 import BM25Okapi
-
-from app.services.embeddings import embed_texts
+from app.services.embeddings import embed_query
 from app.vectorstore.store_manager import (
     get_store_for_document,
     list_all_document_stores,
+    get_bm25_for_store,
 )
 
 TOP_DOCS = 3
@@ -34,13 +33,18 @@ def _is_conceptual_query(query: str) -> bool:
     return any(k in q for k in keywords)
 
 
+# --------------------------------------------------
+# DOCUMENT-SCOPED RETRIEVAL (STRICT)
+# --------------------------------------------------
+
 def retrieve_context(
     query: str,
     top_k: int,
     document_id: str,
 ) -> List[Dict]:
     store = get_store_for_document(document_id)
-    query_embedding = embed_texts([query])[0]
+    query_embedding = embed_query(query)
+
     results = store.search(query_embedding, k=top_k)
 
     contexts: List[Dict] = []
@@ -58,6 +62,10 @@ def retrieve_context(
     return contexts
 
 
+# --------------------------------------------------
+# HYBRID MULTI-DOCUMENT RETRIEVAL (EXPLICIT ONLY)
+# --------------------------------------------------
+
 def retrieve(
     query: str,
     k: int = 5,
@@ -68,21 +76,18 @@ def retrieve(
     Multi-document only when document_id is None.
     """
 
-    query_embedding = embed_texts([query])[0]
-    query_tokens = query.lower().split()
-
-    # --------------------------------------------------
+    # -------------------------------
     # STRICT DOCUMENT ISOLATION
-    # --------------------------------------------------
+    # -------------------------------
     if document_id:
         return retrieve_context(query, k, document_id)
 
-    # --------------------------------------------------
-    # MULTI-DOCUMENT MODE (explicit only)
-    # --------------------------------------------------
     stores = list_all_document_stores()
     if not stores:
         return []
+
+    query_embedding = embed_query(query)
+    query_tokens = query.lower().split()
 
     if _is_conceptual_query(query):
         semantic_weight = SEMANTIC_WEIGHT_CONCEPTUAL
@@ -96,28 +101,12 @@ def retrieve(
 
     for store in stores:
         semantic_hits = store.search(query_embedding, k=k)
-
-        corpus = store.get_all_texts()
-        if not corpus:
+        if not semantic_hits:
             continue
 
-        if not hasattr(store, "_bm25_cache"):
-            tokenized = [doc.lower().split() for doc in corpus]
-            store._bm25_cache = {
-                "size": len(corpus),
-                "bm25": BM25Okapi(tokenized),
-            }
-
-        if store._bm25_cache["size"] != len(corpus):
-            tokenized = [doc.lower().split() for doc in corpus]
-            store._bm25_cache = {
-                "size": len(corpus),
-                "bm25": BM25Okapi(tokenized),
-            }
-
-        bm25 = store._bm25_cache["bm25"]
+        bm25 = get_bm25_for_store(store)
         bm25_scores = bm25.get_scores(query_tokens)
-        max_bm25 = max(bm25_scores) if len(bm25_scores) > 0 else 1.0
+        max_bm25 = max(bm25_scores) if bm25_scores else 1.0
 
         store_id = store.store_dir
 

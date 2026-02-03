@@ -2,20 +2,13 @@ from typing import List, Dict, Iterator
 import re
 import textwrap
 
-from app.config import LLM_PROVIDER
-from groq import Groq
+from app.llm.groq import groq_stream, groq_chat
+from app.config import GROQ_MODEL, LLM_TEMPERATURE
+
 
 # -------------------------------------------------
-# ACTIVE LLM: Groq (LLaMA 3)
-# -------------------------------------------------
-
-_groq_client = Groq()
-GROQ_MODEL = "llama-3.1-8b-instant"
-
-
-# -------------------------
 # Context formatting
-# -------------------------
+# -------------------------------------------------
 
 def _build_context(contexts: List[Dict]) -> str:
     blocks = []
@@ -35,77 +28,51 @@ Content:
     return "\n\n---\n\n".join(blocks)
 
 
-# -------------------------
-# STREAMING LLM (USED ONLY BY /query/stream)
-# -------------------------
+# -------------------------------------------------
+# STREAMING LLM (Groq)
+# -------------------------------------------------
 
 def _stream_llm(prompt: str) -> Iterator[str]:
-    stream = _groq_client.chat.completions.create(
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are a strict RAG assistant. "
+                "Answer only using the provided context. "
+                "Do not hallucinate or assume missing facts."
+            ),
+        },
+        {
+            "role": "user",
+            "content": prompt,
+        },
+    ]
+
+    for token in groq_stream(
+        messages=messages,
         model=GROQ_MODEL,
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You are a strict RAG assistant. "
-                    "Answer only using the provided context. "
-                    "Do not hallucinate or assume missing facts."
-                ),
-            },
-            {
-                "role": "user",
-                "content": prompt,
-            },
-        ],
-        temperature=0.3,
-        stream=True,
-    )
-
-    for chunk in stream:
-        delta = chunk.choices[0].delta
-        if delta and delta.content:
-            yield delta.content
+        temperature=LLM_TEMPERATURE,
+    ):
+        yield token
 
 
-# -------------------------
-# NON-STREAMING LLM (USED BY /chat/message)
-# -------------------------
-
-def _call_llm(prompt: str) -> str:
-    response = _groq_client.chat.completions.create(
-        model=GROQ_MODEL,
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You are a strict RAG assistant. "
-                    "Answer only using the provided context. "
-                    "Do not hallucinate or assume missing facts."
-                ),
-            },
-            {
-                "role": "user",
-                "content": prompt,
-            },
-        ],
-        temperature=0.3,
-        stream=False,
-    )
-
-    return response.choices[0].message.content.strip()
-
-
-# -------------------------
-# Answer generation (STREAMING)
-# -------------------------
+# -------------------------------------------------
+# Answer generation (STREAMING + INLINE CITATIONS)
+# -------------------------------------------------
 
 def stream_answer(query: str, contexts: List[Dict]) -> Iterator[str]:
     if not contexts:
         yield "Based on the provided documents, no relevant information was found."
         return
 
+    # Pre-assign citation IDs
+    citation_map = {
+        idx + 1: ctx for idx, ctx in enumerate(contexts)
+    }
+
     context_block = _build_context(contexts)
 
-    system_prompt = """You are a strict resume analysis assistant.
+    system_prompt = """You are a strict RAG assistant.
 
 Rules:
 1. Use ONLY provided context
@@ -125,25 +92,60 @@ Answer:
 
     full_prompt = f"{system_prompt}\n\n{user_prompt}".strip()
 
+    buffer = ""
+    sentence_end = re.compile(r"[.!?]\s*$")
+
     for token in _stream_llm(full_prompt):
+        buffer += token
         yield token
 
+        # Emit inline citations at sentence boundaries
+        if sentence_end.search(buffer):
+            top_sources = sorted(
+                citation_map.items(),
+                key=lambda x: float(x[1].get("confidence", 0)),
+                reverse=True
+            )[:2]
 
-# -------------------------
-# Answer generation (NON-STREAMING)
-# -------------------------
+            citation_tag = " [" + ",".join(
+                f"S{sid}" for sid, _ in top_sources
+            ) + "]"
+
+            yield citation_tag
+            buffer = ""
+
+
+# -------------------------------------------------
+# NON-STREAMING LLM (chat usage)
+# -------------------------------------------------
 
 def generate_answer(prompt: str) -> str:
-    """
-    Safe synchronous LLM call.
-    Used by /chat/message.
-    """
-    return _call_llm(prompt)
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are a strict RAG assistant. "
+                "Answer only using the provided context. "
+                "Do not hallucinate or assume missing facts."
+            ),
+        },
+        {
+            "role": "user",
+            "content": prompt,
+        },
+    ]
+
+    result = groq_chat(
+        messages=messages,
+        model=GROQ_MODEL,
+    )
+
+    return result.choices[0].message.content.strip()
 
 
-# -------------------------
-# Sentence-level citations
-# -------------------------
+# -------------------------------------------------
+# Sentence-level citations (post-processing)
+# -------------------------------------------------
 
 def generate_sentence_citations(
     full_answer: str,

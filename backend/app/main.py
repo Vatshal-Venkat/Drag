@@ -27,11 +27,11 @@ app.add_middleware(
 # -------------------------
 app.include_router(health.router)
 app.include_router(ingest.router)
-app.include_router(query_stream.router)
+app.include_router(query_stream.router)   # /rag/query/stream
 
 # -------------------------
 # Chat routes
 # -------------------------
 app.include_router(sessions.router)     # /sessions
 app.include_router(chat.router)         # /chat/message
-app.include_router(chat_stream.router)  # /query/stream
+app.include_router(chat_stream.router)    # /chat/stream

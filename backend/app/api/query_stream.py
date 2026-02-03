@@ -10,7 +10,7 @@ from app.services.generator import (
     generate_sentence_citations,
 )
 
-router = APIRouter()
+router = APIRouter(prefix="/rag")
 
 
 def make_json_safe(obj: Any):

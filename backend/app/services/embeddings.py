@@ -20,3 +20,9 @@ def embed_texts(texts: List[str]) -> List[List[float]]:
     )
 
     return embeddings.tolist()
+def embed_query(query: str) -> list:
+    """
+    Embed a single query string.
+    Thin wrapper over embed_texts for retriever usage.
+    """
+    return embed_texts([query])[0]
