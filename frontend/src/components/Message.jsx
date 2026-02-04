@@ -9,7 +9,6 @@ export default function Message({ role, content, citations = [] }) {
 
   let rendered = content || "";
 
-  // Inject citation markers inline (safe pass)
   citations.forEach((c) => {
     if (!c?.sentence) return;
     const marker = ` [${(c.source_ids || [])
@@ -77,7 +76,6 @@ const styles = {
   aiRoot: {
     marginBottom: "30px",
   },
-
   lead: {
     fontSize: "15px",
     fontWeight: 500,
@@ -85,7 +83,6 @@ const styles = {
     color: "#f1f5f9",
     lineHeight: 1.6,
   },
-
   section: {
     fontSize: "14px",
     fontWeight: 600,
@@ -94,17 +91,14 @@ const styles = {
     color: "#67e8f9",
     letterSpacing: "0.2px",
   },
-
   body: {
     fontSize: "14.5px",
     lineHeight: 1.65,
     color: "#e5e7eb",
   },
-
   text: {
     marginBottom: "6px",
   },
-
   bullet: {
     marginBottom: "6px",
     paddingLeft: "12px",

@@ -1,11 +1,14 @@
 import { create } from "zustand";
-import { createSession, fetchSessions } from "../services/chatApi";
-
-import { fetchDocuments } from "../services/chatApi";
-
+import {
+  createSession,
+  fetchSessions,
+  fetchDocuments,
+} from "../services/chatApi";
 
 export const useChatStore = create((set, get) => ({
-  /* ----------------- UI STATE ----------------- */
+  /* =================================================
+     UI STATE
+     ================================================= */
   sidebarOpen: true,
   hoveredSessionId: null,
 
@@ -15,18 +18,21 @@ export const useChatStore = create((set, get) => ({
   setHoveredSession: (id) =>
     set({ hoveredSessionId: id }),
 
-  /* ----------------- MODES ----------------- */
+  /* =================================================
+     MODES
+     ================================================= */
   compareMode: false,
   hitlMode: false,
 
   setCompareMode: (v) => set({ compareMode: v }),
   setHitlMode: (v) => set({ hitlMode: v }),
 
-  /* ----------------- DOCUMENTS ----------------- */
+  /* =================================================
+     DOCUMENT STATE
+     ================================================= */
   documents: [],
   selectedDocuments: [],
-
-  lastActiveDocument: null, // ✅ exists, untouched
+  lastActiveDocument: null,
 
   setLastActiveDocument: (docId) =>
     set({ lastActiveDocument: docId }),
@@ -48,14 +54,22 @@ export const useChatStore = create((set, get) => ({
   clearSelectedDocuments: () =>
     set({ selectedDocuments: [] }),
 
-  /* ----------------- CHAT STATE ----------------- */
+  loadDocuments: async () => {
+    const res = await fetchDocuments();
+    set({ documents: res?.documents || [] });
+  },
+
+  /* =================================================
+     CHAT / SESSION STATE
+     ================================================= */
   sessions: [],
   currentSessionId: null,
   messages: [],
   loading: false,
   error: null,
 
-  sessionSummaries: {}, // ✅ FIX: prevents ChatHistoryItem crash
+  /* Prevents ChatHistoryItem crash */
+  sessionSummaries: {},
 
   setSessionSummary: (id, summary) =>
     set((state) => ({
@@ -65,19 +79,29 @@ export const useChatStore = create((set, get) => ({
       },
     })),
 
-  /* ----------------- SESSIONS ----------------- */
+  /* =================================================
+     SESSION MANAGEMENT
+     ================================================= */
   loadSessions: async () => {
     const sessions = await fetchSessions();
     set({ sessions });
+
+    // Load documents alongside sessions (safe, async)
+    const docs = await fetchDocuments();
+    set({ documents: docs?.documents || [] });
   },
 
   startNewSession: async () => {
     const session = await createSession();
+
     set((state) => ({
       sessions: [session, ...state.sessions],
       currentSessionId: session.id,
       messages: [],
+      loading: false,
+      error: null,
     }));
+
     return session.id;
   },
 
@@ -85,10 +109,14 @@ export const useChatStore = create((set, get) => ({
     set({
       currentSessionId: sessionId,
       messages: [],
+      loading: false,
+      error: null,
     });
   },
 
-  /* ----------------- MESSAGES ----------------- */
+  /* =================================================
+     MESSAGE FLOW
+     ================================================= */
   sendUserMessage: async (input) => {
     const payload =
       typeof input === "string"
@@ -103,10 +131,12 @@ export const useChatStore = create((set, get) => ({
       currentSessionId = await get().startNewSession();
     }
 
+    const timestamp = new Date().toISOString();
+
     const userMsg = {
       role: "user",
       content: payload.question,
-      timestamp: new Date().toISOString(),
+      timestamp,
     };
 
     const assistantMsg = {
@@ -114,7 +144,7 @@ export const useChatStore = create((set, get) => ({
       content: "…",
       citations: [],
       meta: payload,
-      timestamp: new Date().toISOString(),
+      timestamp,
     };
 
     set((state) => ({
@@ -134,25 +164,6 @@ export const useChatStore = create((set, get) => ({
 
   stopLoading: () => set({ loading: false }),
 
-  /* ----------------- DOCUMENTS ----------------- */
-  documents: [],
-  selectedDocuments: [],
-
-  loadDocuments: async () => {
-    const res = await fetchDocuments();
-    set({ documents: res.documents || [] });
-  },
-
-  /* ----------------- SESSIONS ----------------- */
-  
-  loadSessions: async () => {
-    const sessions = await fetchSessions();
-    set({ sessions });
-  
-    
-    const docs = await fetchDocuments();
-    set({ documents: docs.documents || [] });
-  },
-
-
+  setError: (err) =>
+    set({ error: err, loading: false }),
 }));

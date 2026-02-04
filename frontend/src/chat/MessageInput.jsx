@@ -12,33 +12,21 @@ export default function MessageInput({ hasMessages }) {
 
   // ❌ REMOVED LOCAL compareMode STATE (WAS BREAKING SYNC)
   const compareMode = useChatStore((s) => s.compareMode);
-  const selectedDocuments = useChatStore(
-    (s) => s.selectedDocuments
-  );
+  const selectedDocuments = useChatStore((s) => s.selectedDocuments);
 
-  const useHumanFeedback = true; // unchanged behavior
+  const useHumanFeedback = true;
 
   const textareaRef = useRef(null);
   const fileRef = useRef(null);
 
-  const sendUserMessage = useChatStore(
-    (s) => s.sendUserMessage
-  );
-  const updateLastAssistant = useChatStore(
-    (s) => s.updateLastAssistant
-  );
+  const sendUserMessage = useChatStore((s) => s.sendUserMessage);
+  const updateLastAssistant = useChatStore((s) => s.updateLastAssistant);
   const stopLoading = useChatStore((s) => s.stopLoading);
 
-  const lastActiveDocument = useChatStore(
-    (s) => s.lastActiveDocument
-  );
-  const setLastActiveDocument = useChatStore(
-    (s) => s.setLastActiveDocument
-  );
+  const lastActiveDocument = useChatStore((s) => s.lastActiveDocument);
+  const setLastActiveDocument = useChatStore((s) => s.setLastActiveDocument);
 
-  const registerDocument = useChatStore(
-    (s) => s.registerDocument
-  );
+  const registerDocument = useChatStore((s) => s.registerDocument);
 
   const loading = useChatStore((s) => s.loading);
   const rag = useRagStream();
@@ -88,11 +76,16 @@ export default function MessageInput({ hasMessages }) {
           if (m) m.content = content;
         }),
 
+      /**
+       * 🔧 FIXED:
+       * onSkip no longer injects "Please upload a document"
+       * Backend now ALWAYS responds, so skip means "no stream"
+       */
       onSkip: () => {
         updateLastAssistant((m) => {
-          if (m) {
+          if (m && !m.content) {
             m.content =
-              "Please upload a document to continue.";
+              "I couldn’t find anything relevant for that question. You can upload a document if you want me to answer based on it.";
           }
         });
         stopLoading();
@@ -106,6 +99,10 @@ export default function MessageInput({ hasMessages }) {
     compareMode,
     selectedDocuments,
     lastActiveDocument,
+    sendUserMessage,
+    rag,
+    updateLastAssistant,
+    stopLoading,
   ]);
 
   /* ---------------- File Upload ---------------- */
@@ -126,7 +123,7 @@ export default function MessageInput({ hasMessages }) {
 
     if (data?.document_id) {
       setLastActiveDocument(data.document_id);
-      registerDocument(data.document_id); // ✅ FIX
+      registerDocument(data.document_id);
       setFileState({ name: file.name, status: "done" });
     } else {
       setFileState({ name: file.name, status: "error" });
@@ -179,9 +176,7 @@ export default function MessageInput({ hasMessages }) {
             {voiceSupported && (
               <button
                 className="altaric-voice-button"
-                onClick={
-                  listening ? stopVoice : startVoice
-                }
+                onClick={listening ? stopVoice : startVoice}
                 disabled={loading}
               >
                 🎤
@@ -198,14 +193,11 @@ export default function MessageInput({ hasMessages }) {
           </div>
         </div>
 
-        {/* ✅ FILE STATUS PILL (RESTORED) */}
+        {/* FILE STATUS PILL */}
         {fileState && (
-          <div
-            className={`altaric-file-pill ${fileState.status}`}
-          >
+          <div className={`altaric-file-pill ${fileState.status}`}>
             {fileState.name}
-            {fileState.status === "uploading" &&
-              " · uploading"}
+            {fileState.status === "uploading" && " · uploading"}
             {fileState.status === "done" && " ✓"}
             {fileState.status === "error" && " ⚠"}
           </div>

@@ -20,12 +20,10 @@ export default function MessageRow({
 
   function handleLike() {
     console.log("Feedback: like");
-    // 🔜 wire to backend later
   }
 
   function handleDislike() {
     console.log("Feedback: dislike");
-    // 🔜 wire to backend later
   }
 
   const iconBaseStyle = {
@@ -67,7 +65,6 @@ export default function MessageRow({
           position: "relative",
         }}
       >
-        {/* MESSAGE CONTENT */}
         {isUser ? (
           <div>{content}</div>
         ) : (
@@ -78,7 +75,6 @@ export default function MessageRow({
           />
         )}
 
-        {/* ACTION BAR (AI ONLY) */}
         {!isUser && content && (
           <div
             style={{
@@ -88,7 +84,6 @@ export default function MessageRow({
               opacity: 0.85,
             }}
           >
-            {/* COPY */}
             <div
               style={{
                 ...iconBaseStyle,
@@ -102,7 +97,6 @@ export default function MessageRow({
               ⧉
             </div>
 
-            {/* LIKE */}
             <div
               style={{
                 ...iconBaseStyle,
@@ -116,7 +110,6 @@ export default function MessageRow({
               👍
             </div>
 
-            {/* DISLIKE */}
             <div
               style={{
                 ...iconBaseStyle,
@@ -132,7 +125,6 @@ export default function MessageRow({
           </div>
         )}
 
-        {/* SOURCES SECTION */}
         {!isUser && citations.length > 0 && (
           <div style={{ marginTop: "12px" }}>
             <div
@@ -147,12 +139,10 @@ export default function MessageRow({
             >
               Sources used
             </div>
-
             <SourceCitations sources={citations} />
           </div>
         )}
 
-        {/* TIMESTAMP */}
         {timestamp && isUser && (
           <div
             style={{

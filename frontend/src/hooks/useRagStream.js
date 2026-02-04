@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo } from "react";
+import { useChatStore } from "../store/chatStore";
 
 export function useRagStream() {
   const [sources, setSources] = useState([]);
@@ -26,7 +27,7 @@ export function useRagStream() {
     onCitations,
     onSources,
     onDone,
-    onSkip, // 🆕 NEW (OPTIONAL)
+    onSkip,
   }) {
     if (!question || !question.trim()) {
       console.warn("ask() called with empty question");
@@ -35,24 +36,47 @@ export function useRagStream() {
       return;
     }
 
-    // 🚨 HARD CONTRACT ENFORCEMENT (BACKEND SAFE)
-    if (!compareMode && !documentId) {
-      console.error(
-        "RAG BLOCKED: document_id is required for non-comparison queries"
-      );
-      onSkip?.("missing_document_id"); // 🆕 notify caller
-      onDone?.();                      // 🆕 ensure UI unlocks
-      return;
+    /* --------------------------------------------------
+       ROUTING DECISION
+       -------------------------------------------------- */
+    const shouldUseChatEndpoint =
+      !compareMode &&
+      !documentId &&
+      (!Array.isArray(documentIds) || documentIds.length === 0);
+
+    const chatStore = useChatStore.getState();
+
+    let sessionId = chatStore.currentSessionId;
+
+    // 🔧 FIX: ensure session exists BEFORE /chat/stream
+    if (shouldUseChatEndpoint && !sessionId) {
+      try {
+        sessionId = await chatStore.startNewSession();
+      } catch (err) {
+        console.error("Failed to create session:", err);
+        onSkip?.("session_create_failed");
+        onDone?.();
+        return;
+      }
     }
 
-    if (compareMode && (!Array.isArray(documentIds) || documentIds.length === 0)) {
-      console.error(
-        "RAG BLOCKED: document_ids[] required for comparison queries"
-      );
-      onSkip?.("missing_document_ids"); // 🆕 notify caller
-      onDone?.();                       // 🆕 ensure UI unlocks
-      return;
-    }
+    const endpoint = shouldUseChatEndpoint
+      ? "http://localhost:8000/chat/stream"
+      : "http://localhost:8000/rag/query/stream";
+
+    const payload = shouldUseChatEndpoint
+      ? {
+          session_id: sessionId,
+          user_text: question,
+        }
+      : {
+          query: question,
+          top_k: topK,
+          document_id: compareMode ? null : documentId,
+          document_ids: compareMode ? documentIds : null,
+          compare_mode: compareMode,
+          use_human_feedback: useHumanFeedback,
+        };
 
     setIsStreaming(true);
     setLastActivity(Date.now());
@@ -61,33 +85,25 @@ export function useRagStream() {
     controllerRef.current = new AbortController();
 
     try {
-      const response = await fetch(
-        "http://localhost:8000/rag/query/stream",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          signal: controllerRef.current.signal,
-          body: JSON.stringify({
-            query: question,
-            top_k: topK,
-            document_id: compareMode ? null : documentId,
-            document_ids: compareMode ? documentIds : null,
-            compare_mode: compareMode,
-            use_human_feedback: useHumanFeedback,
-          }),
-        }
-      );
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        signal: controllerRef.current.signal,
+        body: JSON.stringify(payload),
+      });
 
       if (!response.ok) {
         const errText = await response.text();
-        console.error("RAG HTTP ERROR:", response.status, errText);
-        throw new Error("Failed to start RAG stream");
+        console.error("STREAM HTTP ERROR:", response.status, errText);
+        onSkip?.("http_error");
+        onDone?.();
+        return;
       }
 
       if (!response.body) {
-        throw new Error("No response body for RAG stream");
+        throw new Error("No response body for stream");
       }
 
       const reader = response.body.getReader();
@@ -117,7 +133,6 @@ export function useRagStream() {
           try {
             parsed = JSON.parse(payload);
           } catch {
-            console.warn("Non-JSON SSE payload:", payload);
             continue;
           }
 
@@ -139,9 +154,9 @@ export function useRagStream() {
       }
     } catch (err) {
       if (err.name !== "AbortError") {
-        console.error("RAG stream error:", err);
+        console.error("Stream error:", err);
       }
-      onSkip?.("stream_error"); // 🆕 optional visibility
+      onSkip?.("stream_error");
     } finally {
       setIsStreaming(false);
     }
