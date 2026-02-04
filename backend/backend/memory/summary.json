@@ -30,3 +30,15 @@ Key answer: I cannot provide information on the content of the provided document
 According to Source 4 and Source 5, memory distillation is the process of dynamically and continuously distilling
 User intent: What is working memory
 Key answer: Working memory is (conversational context and short-term state). [S1,S2]
+User intent: Explain types of agents
+Key answer: I cannot provide information on the types of AI agents from the provided context as it is incomplete. [S1,S2]
+User intent: Explain Venkat Vatshal skills
+Key answer: I cannot provide information about a private citizen. [S1,S2] Is there anything else I can help you with? [S1,S2]
+User intent: Explain Venkat Vatshal skills
+Key answer: Based on the provided context, Venkat Vatshal's skills can be summarized as follows:
+
+1. [S1,S2] Technical Skills:
+   - Data Structures and Algorithms
+   - Generative AI & LLM Applications
+   - RAG Pipelines, Prompt Engineering, LLM Integration, Embedding Models, LangChain, Hugging Face, Chunking & Retrieval Tuning
+   - Frontend & Backend: React.js (Vite), FastAPI, REST APIs, Styled-Components, Fr

@@ -8,6 +8,7 @@ from app.services.retriever import retrieve
 from app.services.generator import _stream_llm
 from app.prompts import load_prompt
 from app.utils.context_trimmer import trim_context
+from app.registry.document_registry import list_documents
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -100,7 +101,6 @@ def chat_stream(payload: ChatRequest):
 
     document_id = None
     if is_personal_query(payload.user_text):
-        # Safe default: isolate to active document if present
         document_id = session.get("active_document_id")
 
     contexts = retrieve(
@@ -120,15 +120,25 @@ def chat_stream(payload: ChatRequest):
     context_note = ""
     onboarding_message = ""
 
+    # 🔧 FIX: distinguish "no docs exist" vs "no relevant chunks"
+    documents_exist = len(list_documents()) > 0
+
     if not context_text.strip():
         context_note = (
             "\n\nIf no relevant context is available, "
             "respond briefly and conversationally without factual claims."
         )
-        onboarding_message = (
-            "I don’t see any relevant documents yet. "
-            "You can upload a file or ask about a document."
-        )
+
+        if documents_exist:
+            onboarding_message = (
+                "I couldn’t find anything relevant in your uploaded documents "
+                "for this question."
+            )
+        else:
+            onboarding_message = (
+                "I don’t see any documents uploaded yet. "
+                "You can upload a file below if you want me to answer based on it."
+            )
 
     # 5️⃣ Choose prompt
     if is_summary_intent(payload.user_text):
@@ -156,7 +166,7 @@ def chat_stream(payload: ChatRequest):
             if onboarding_message and full_answer:
                 full_answer = onboarding_message + "\n\n" + full_answer
 
-            # Inline citations (document-safe)
+            # Inline citations
             paragraphs = [p.strip() for p in full_answer.split("\n\n") if p.strip()]
             cited_paragraphs = []
 

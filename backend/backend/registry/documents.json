@@ -3,5 +3,10 @@
     "document_id": "ADK.pdf",
     "pages": 64,
     "chunks": 353
+  },
+  "Venkat-Vatshal.pdf": {
+    "document_id": "Venkat-Vatshal.pdf",
+    "pages": 2,
+    "chunks": 9
   }
 }
