@@ -162,7 +162,7 @@ export default function MessageInput({ hasMessages }) {
             <textarea
               ref={textareaRef}
               value={text}
-              placeholder="Ask Altaric AI…"
+              placeholder="Ask ECHO AI"
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {

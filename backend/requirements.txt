@@ -8,3 +8,5 @@ sentence-transformers
 groq
 python-dotenv
 rank-bm25
+faiss-cpu
+

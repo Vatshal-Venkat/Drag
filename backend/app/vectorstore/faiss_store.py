@@ -1,8 +1,16 @@
-import faiss
-import numpy as np
 import os
 import pickle
 from typing import List, Dict
+
+import numpy as np
+
+
+# -------------------------
+# Lazy FAISS loader
+# -------------------------
+def _load_faiss():
+    import faiss
+    return faiss
 
 
 class FAISSStore:
@@ -20,14 +28,17 @@ class FAISSStore:
         self.index_path = os.path.join(store_dir, "index.faiss")
         self.meta_path = os.path.join(store_dir, "meta.pkl")
 
+        # 🔑 Load FAISS only when needed
+        self.faiss = _load_faiss()
+
         if os.path.exists(self.index_path) and os.path.exists(self.meta_path):
             # Load existing index
-            self.index = faiss.read_index(self.index_path)
+            self.index = self.faiss.read_index(self.index_path)
             with open(self.meta_path, "rb") as f:
                 self.metadata: List[Dict] = pickle.load(f)
         else:
             # Create new index
-            self.index = faiss.IndexFlatL2(dim)
+            self.index = self.faiss.IndexFlatL2(dim)
             self.metadata: List[Dict] = []
 
     # -------------------------
@@ -45,7 +56,7 @@ class FAISSStore:
         if len(embeddings) != len(metadatas):
             raise ValueError("Embeddings and metadatas length mismatch")
 
-        vectors = np.array(embeddings, dtype="float32")
+        vectors = np.asarray(embeddings, dtype="float32")
 
         if vectors.shape[1] != self.dim:
             raise ValueError(
@@ -55,7 +66,6 @@ class FAISSStore:
         start_id = len(self.metadata)
 
         for i, meta in enumerate(metadatas):
-            # Stable per-document chunk ID
             meta["id"] = start_id + i
 
         self.index.add(vectors)
@@ -69,10 +79,7 @@ class FAISSStore:
         if self.index.ntotal == 0:
             return []
 
-        query_vector = (
-            np.array(query_embedding, dtype="float32")
-            .reshape(1, -1)
-        )
+        query_vector = np.asarray(query_embedding, dtype="float32").reshape(1, -1)
 
         distances, indices = self.index.search(query_vector, k)
 
@@ -90,19 +97,13 @@ class FAISSStore:
         return results
 
     # -------------------------
-    # 🔹 NEW: BM25 SUPPORT (ADDITIVE ONLY)
+    # BM25 support helpers
     # -------------------------
 
     def get_all_texts(self) -> List[str]:
-        """
-        Return all chunk texts in this store (for BM25).
-        """
         return [m.get("text", "") for m in self.metadata]
 
     def get_all_metadata(self) -> List[Dict]:
-        """
-        Return full metadata list (safe copy).
-        """
         return list(self.metadata)
 
     # -------------------------
@@ -110,9 +111,6 @@ class FAISSStore:
     # -------------------------
 
     def save(self):
-        """
-        Persist index and metadata to disk.
-        """
-        faiss.write_index(self.index, self.index_path)
+        self.faiss.write_index(self.index, self.index_path)
         with open(self.meta_path, "wb") as f:
             pickle.dump(self.metadata, f)
