@@ -42,3 +42,30 @@ Key answer: Based on the provided context, Venkat Vatshal's skills can be summar
    - Generative AI & LLM Applications
    - RAG Pipelines, Prompt Engineering, LLM Integration, Embedding Models, LangChain, Hugging Face, Chunking & Retrieval Tuning
    - Frontend & Backend: React.js (Vite), FastAPI, REST APIs, Styled-Components, Fr
+User intent: explain venkat vatshal
+Key answer: Based on the provided context, I can provide the following information about Venkat Vatshal:
+
+- Name: Venkat Vatshal K
+- Email: venkatvatshal@gmail.com
+- Phone Number: 7989157997
+- LinkedIn Profile: Vatshal_Venkat
+- Portfolio: (Not specified)
+- Career Objective: AI Engineer with hands-on experience in building and deploying Generative AI applications, including RAG pipelines and agentic workflows.
+User intent: explain venkat vatshal skills
+Key answer: Based on the provided context, Venkat Vatshal's skills are mentioned as follows:
+
+1. [S1,S2] Technical Skills:
+   - Data Structures and Algorithms
+   - Generative AI
+
+2. [S1,S2] Certifications:
+   - DSA with JAVA (from Apna College, 11/2024)
+   - CISCO Networking Academy C language (04/2023)
+   - IBM Python (05/2023)
+   - PowerBI (07/2023)
+
+Note: The provided context does not mention any other ski
+User intent: What is Echo?
+Key answer: I don't have enough information to answer your question. [S1,S2] The provided context does not mention "Echo". [S1,S2]
+User intent: What is Drag?
+Key answer: The project implements a Retrieval-Augmented Generation (RAG) based question answering system named DRAG. [S1,S2]

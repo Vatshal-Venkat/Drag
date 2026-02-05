@@ -1,8 +1,15 @@
 from typing import List
 from sentence_transformers import SentenceTransformer
 
-# Load once (global)
-_model = SentenceTransformer("all-MiniLM-L6-v2")
+model = None
+
+def get_model():
+    global model
+    if model is None:
+        from sentence_transformers import SentenceTransformer
+        model = SentenceTransformer("all-MiniLM-L6-v2")
+    return model
+
 
 
 def embed_texts(texts: List[str]) -> List[List[float]]:

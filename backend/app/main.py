@@ -24,7 +24,8 @@ document_registry.list_documents()
 # -------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["https://drag-eosin.vercel.app/"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
