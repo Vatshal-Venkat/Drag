@@ -4,43 +4,57 @@ load_dotenv()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+# -------------------------
 # Existing API routes
-from app.api import ingest, health, query_stream
+# -------------------------
+from app.api import ingest, health, query_stream, documents
 
+# -------------------------
 # Chat routes
+# -------------------------
 from app.routes import chat, sessions, chat_stream
 
+# -------------------------
+# Registry
+# -------------------------
 from app.registry import document_registry
-
-from app.api import documents
 
 
 app = FastAPI(title="RAG Accelerator")
 
+# Initialize document registry at startup
 document_registry.list_documents()
 
 # -------------------------
-# CORS (frontend support)
+# CORS (Frontend support)
 # -------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://drag-eosin.vercel.app/"],
+    allow_origins=[
+        "https://drag-eosin.vercel.app",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # -------------------------
-# Existing API routes
+# Health & Ingestion APIs
 # -------------------------
 app.include_router(health.router)
 app.include_router(ingest.router)
-app.include_router(query_stream.router)   # /rag/query/stream
 
 # -------------------------
-# Chat routes
+# RAG APIs
 # -------------------------
-app.include_router(sessions.router)     # /sessions
-app.include_router(chat.router)         # /chat/message
+app.include_router(query_stream.router)   # /rag/query/stream
+app.include_router(documents.router)      # /documents
+
+# -------------------------
+# Chat APIs
+# -------------------------
+app.include_router(sessions.router)       # /sessions
+app.include_router(chat.router)           # /chat/message
 app.include_router(chat_stream.router)    # /chat/stream
-app.include_router(documents.router)

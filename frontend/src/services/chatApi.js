@@ -1,4 +1,17 @@
-const API_BASE = "http://localhost:8000";
+// =========================
+// API BASE CONFIGURATION
+// =========================
+
+// Vite environment variable
+// Local: http://localhost:8000
+// Prod: https://drag-ns1r.onrender.com
+const API_BASE = import.meta.env.VITE_API_BASE_URL;
+
+if (!API_BASE) {
+  throw new Error(
+    "VITE_API_BASE_URL is not defined. Check your Vercel environment variables."
+  );
+}
 
 /* =========================
    Session APIs (JSON)
@@ -52,7 +65,6 @@ export async function fetchDocuments() {
 
 /* =========================
    Chat Streaming API (SSE)
-   /chat/stream
 ========================= */
 
 export async function streamChatMessage(
@@ -103,7 +115,6 @@ export async function streamChatMessage(
 
         const payload = rawEvent.replace("data:", "").trim();
 
-        /* -------- END -------- */
         if (payload === "[DONE]") {
           doneCalled = true;
           onDone?.(collectedCitations);
@@ -118,30 +129,14 @@ export async function streamChatMessage(
           continue;
         }
 
-        /* -------- TOKEN (PRIMARY) -------- */
         if (parsed.type === "token" && typeof parsed.value === "string") {
           onToken(parsed.value);
         }
 
-        /* -------- TOKEN (BACKWARD COMPAT) -------- */
-        if (typeof parsed.token === "string") {
-          onToken(parsed.token);
-        }
-
-        /* -------- CITATIONS (PRIMARY) -------- */
         if (parsed.type === "citations" && Array.isArray(parsed.value)) {
           collectedCitations = parsed.value;
         }
-
-        /* -------- CITATIONS (BACKWARD COMPAT) -------- */
-        if (Array.isArray(parsed.citations)) {
-          collectedCitations = parsed.citations;
-        }
       }
-    }
-  } catch (err) {
-    if (err.name !== "AbortError") {
-      console.error("SSE stream error:", err);
     }
   } finally {
     if (!doneCalled) {
@@ -153,8 +148,6 @@ export async function streamChatMessage(
 
 /* =========================
    RAG Streaming API (SSE)
-   /rag/query/stream
-   (Optional direct usage)
 ========================= */
 
 export async function streamRagQuery(
