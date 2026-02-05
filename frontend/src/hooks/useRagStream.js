@@ -1,6 +1,18 @@
 import { useState, useRef, useMemo } from "react";
 import { useChatStore } from "../store/chatStore";
 
+/* =========================
+   API BASE CONFIG
+========================= */
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL;
+
+if (!API_BASE) {
+  throw new Error(
+    "VITE_API_BASE_URL is not defined. Check Vercel environment variables."
+  );
+}
+
 export function useRagStream() {
   const [sources, setSources] = useState([]);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -45,10 +57,9 @@ export function useRagStream() {
       (!Array.isArray(documentIds) || documentIds.length === 0);
 
     const chatStore = useChatStore.getState();
-
     let sessionId = chatStore.currentSessionId;
 
-    // 🔧 FIX: ensure session exists BEFORE /chat/stream
+    // Ensure session exists BEFORE /chat/stream
     if (shouldUseChatEndpoint && !sessionId) {
       try {
         sessionId = await chatStore.startNewSession();
@@ -60,9 +71,12 @@ export function useRagStream() {
       }
     }
 
+    /* --------------------------------------------------
+       ENDPOINT SELECTION (FIXED)
+       -------------------------------------------------- */
     const endpoint = shouldUseChatEndpoint
-      ? "http://localhost:8000/chat/stream"
-      : "http://localhost:8000/rag/query/stream";
+      ? `${API_BASE}/chat/stream`
+      : `${API_BASE}/rag/query/stream`;
 
     const payload = shouldUseChatEndpoint
       ? {
@@ -89,6 +103,7 @@ export function useRagStream() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Accept: "text/event-stream",
         },
         signal: controllerRef.current.signal,
         body: JSON.stringify(payload),
@@ -121,9 +136,9 @@ export function useRagStream() {
         for (const event of events) {
           if (!event.startsWith("data:")) continue;
 
-          const payload = event.replace("data:", "").trim();
+          const payloadText = event.replace("data:", "").trim();
 
-          if (payload === "[DONE]") {
+          if (payloadText === "[DONE]") {
             setIsStreaming(false);
             onDone?.();
             return;
@@ -131,7 +146,7 @@ export function useRagStream() {
 
           let parsed;
           try {
-            parsed = JSON.parse(payload);
+            parsed = JSON.parse(payloadText);
           } catch {
             continue;
           }
