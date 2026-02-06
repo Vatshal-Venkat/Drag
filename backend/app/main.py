@@ -23,7 +23,8 @@ from app.registry import document_registry
 app = FastAPI(title="RAG Accelerator")
 
 # Initialize document registry at startup
-document_registry.list_documents()
+
+#document_registry.list_documents()
 
 # -------------------------
 # CORS (Frontend support)

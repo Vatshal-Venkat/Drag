@@ -1,5 +1,5 @@
 from typing import List
-from sentence_transformers import SentenceTransformer
+
 
 model = None
 
@@ -12,21 +12,18 @@ def get_model():
 
 
 
-def embed_texts(texts: List[str]) -> List[List[float]]:
-    """
-    Generate embeddings locally using SentenceTransformers.
-    Free, fast, FAISS-compatible.
-    """
+def embed_texts(texts):
     if not texts:
         return []
 
-    embeddings = _model.encode(
+    model = get_model()
+    embeddings = model.encode(
         texts,
         normalize_embeddings=True,
         convert_to_numpy=True,
     )
-
     return embeddings.tolist()
+
 def embed_query(query: str) -> list:
     """
     Embed a single query string.
