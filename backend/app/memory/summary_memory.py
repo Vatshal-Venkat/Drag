@@ -41,3 +41,18 @@ def update_summary(
     new_summary = "\n".join(lines[-6:])  # keep memory small
     save_summary(new_summary)
     return new_summary
+
+
+# ==================================================
+# 🔹 AGENT-FACING HELPERS (ADDITIVE)
+# ==================================================
+
+def should_update_summary(
+    user_query: str,
+    assistant_answer: str,
+) -> bool:
+    """
+    Memory Agent heuristic (cheap + deterministic).
+    Planner can override this later.
+    """
+    return len(assistant_answer.strip()) > 120

@@ -1,6 +1,7 @@
 from typing import List, Dict, Iterator, Optional
 import re
 import textwrap
+import json
 
 from app.llm.groq import groq_stream, groq_chat
 from app.config import GROQ_MODEL, LLM_TEMPERATURE
@@ -12,11 +13,26 @@ except Exception:
     inject_human_feedback = None
 
 
-# -------------------------------------------------
-# Context formatting
-# -------------------------------------------------
+# =================================================
+# AGENT METADATA
+# =================================================
+
+AGENT_NAME = "generator_agent"
+AGENT_DESCRIPTION = (
+    "Synthesizes a final answer strictly from provided observations "
+    "and retrieved context. Does not retrieve or plan."
+)
+
+
+# =================================================
+# CONTEXT FORMATTING
+# =================================================
 
 def _build_context(contexts: List[Dict]) -> str:
+    """
+    Convert retrieved contexts into a structured,
+    LLM-safe block for generation.
+    """
     blocks = []
 
     for i, c in enumerate(contexts, start=1):
@@ -38,8 +54,8 @@ def _build_comparison_context(
     grouped_contexts: Dict[str, List[Dict]]
 ) -> str:
     """
-    Build structured context grouped per document
-    for comparison prompts.
+    Build structured context grouped per document.
+    Used by comparison / multi-doc agent plans.
     """
 
     sections = []
@@ -52,23 +68,43 @@ def _build_comparison_context(
     return "\n\n".join(sections)
 
 
-# -------------------------------------------------
-# STREAMING LLM (Groq)
-# -------------------------------------------------
+# =================================================
+# AGENTIC SYSTEM PROMPT
+# =================================================
 
-def _stream_llm(prompt: str) -> Iterator[str]:
+BASE_SYSTEM_PROMPT = """You are an Agentic RAG Generator Agent.
+
+Rules:
+1. Use ONLY the provided context and observations
+2. NEVER hallucinate or assume missing facts
+3. If the context is insufficient, say so explicitly
+4. Do NOT mention agents, tools, or internal systems
+5. Respond clearly, concisely, and factually
+"""
+
+
+# =================================================
+# LOW-LEVEL STREAMING LLM
+# =================================================
+
+def _stream_llm(
+    user_prompt: str,
+    *,
+    system_prompt: Optional[str] = None,
+) -> Iterator[str]:
+    """
+    Internal streaming LLM call.
+    This is the ONLY place where the LLM is touched.
+    """
+
     messages = [
         {
             "role": "system",
-            "content": (
-                "You are a strict RAG assistant. "
-                "Answer only using the provided context. "
-                "Do not hallucinate or assume missing facts."
-            ),
+            "content": system_prompt or BASE_SYSTEM_PROMPT,
         },
         {
             "role": "user",
-            "content": prompt,
+            "content": user_prompt,
         },
     ]
 
@@ -80,16 +116,25 @@ def _stream_llm(prompt: str) -> Iterator[str]:
         yield token
 
 
-# -------------------------------------------------
-# Answer generation (STREAMING + INLINE CITATIONS)
-# -------------------------------------------------
+# =================================================
+# AGENTIC STREAMING ANSWER (MAIN PATH)
+# =================================================
 
 def stream_answer(
     query: str,
     contexts: List[Dict],
     *,
     use_human_feedback: bool = True,
+    observations: Optional[List[Dict]] = None,
 ) -> Iterator[str]:
+    """
+    AGENT TOOL: generator_agent
+
+    This function assumes:
+    - Retrieval, reranking, planning already happened
+    - Contexts are FINAL inputs
+    """
+
     if not contexts:
         yield "Based on the provided documents, no relevant information was found."
         return
@@ -98,36 +143,47 @@ def stream_answer(
     if use_human_feedback and inject_human_feedback:
         contexts = inject_human_feedback(query, contexts)
 
-    citation_map = {
-        idx + 1: ctx for idx, ctx in enumerate(contexts)
-    }
+    # -------------------------------------------------
+    # Context + Observations
+    # -------------------------------------------------
 
     context_block = _build_context(contexts)
 
-    system_prompt = """You are a strict RAG assistant.
+    observation_block = ""
+    if observations:
+        observation_block = "\n\n".join(
+            f"- {json.dumps(obs, ensure_ascii=False)}"
+            for obs in observations
+        )
+        observation_block = f"\n\nObservations:\n{observation_block}"
 
-Rules:
-1. Use ONLY provided context
-2. Do NOT hallucinate
-3. If missing info, say so explicitly
-"""
+    # -------------------------------------------------
+    # Prompt
+    # -------------------------------------------------
 
     user_prompt = f"""
 Context:
 {context_block}
+{observation_block}
 
 Question:
 {query}
 
 Answer:
-"""
-
-    full_prompt = f"{system_prompt}\n\n{user_prompt}".strip()
+""".strip()
 
     buffer = ""
     sentence_end = re.compile(r"[.!?]\s*$")
 
-    for token in _stream_llm(full_prompt):
+    citation_map = {
+        idx + 1: ctx for idx, ctx in enumerate(contexts)
+    }
+
+    # -------------------------------------------------
+    # Stream tokens with inline citations
+    # -------------------------------------------------
+
+    for token in _stream_llm(user_prompt):
         buffer += token
         yield token
 
@@ -146,30 +202,29 @@ Answer:
             buffer = ""
 
 
-# -------------------------------------------------
-# 🔹 NEW: COMPARISON ANSWER GENERATION
-# -------------------------------------------------
+# =================================================
+# COMPARISON GENERATION (AGENTIC)
+# =================================================
 
 def stream_comparison_answer(
     query: str,
     grouped_contexts: Dict[str, List[Dict]],
 ) -> Iterator[str]:
     """
-    Generate a structured comparison across documents.
+    AGENT TOOL: generator_agent (comparison mode)
     """
 
     context_block = _build_comparison_context(grouped_contexts)
 
-    system_prompt = """You are a strict RAG assistant.
+    system_prompt = BASE_SYSTEM_PROMPT + """
 
 Task:
-Compare the documents using ONLY the provided context.
+Compare multiple documents using ONLY the provided context.
 
-Rules:
-1. Do NOT hallucinate
-2. Do NOT assume missing information
-3. Clearly separate similarities, differences, and conflicts
-4. Reference documents explicitly
+Output Structure:
+- Similarities
+- Differences
+- Conflicts (if any)
 """
 
     user_prompt = f"""
@@ -179,37 +234,30 @@ Documents Context:
 Comparison Question:
 {query}
 
-Provide the answer in the following structure:
+Answer:
+""".strip()
 
-Similarities:
-- ...
-
-Differences:
-- ...
-
-Conflicts (if any):
-- ...
-"""
-
-    full_prompt = f"{system_prompt}\n\n{user_prompt}".strip()
-
-    for token in _stream_llm(full_prompt):
+    for token in _stream_llm(user_prompt, system_prompt=system_prompt):
         yield token
 
 
-# -------------------------------------------------
-# NON-STREAMING LLM (chat usage)
-# -------------------------------------------------
+# =================================================
+# NON-STREAMING GENERATION (AGENTIC)
+# =================================================
 
-def generate_answer(prompt: str) -> str:
+def generate_answer(
+    prompt: str,
+    *,
+    system_prompt: Optional[str] = None,
+) -> str:
+    """
+    Non-streaming generation for summaries or background tasks.
+    """
+
     messages = [
         {
             "role": "system",
-            "content": (
-                "You are a strict RAG assistant. "
-                "Answer only using the provided context. "
-                "Do not hallucinate or assume missing facts."
-            ),
+            "content": system_prompt or BASE_SYSTEM_PROMPT,
         },
         {
             "role": "user",
@@ -225,14 +273,17 @@ def generate_answer(prompt: str) -> str:
     return result.choices[0].message.content.strip()
 
 
-# -------------------------------------------------
-# Sentence-level citations (post-processing)
-# -------------------------------------------------
+# =================================================
+# SENTENCE-LEVEL CITATIONS (POST-PROCESSING)
+# =================================================
 
 def generate_sentence_citations(
     full_answer: str,
     contexts: List[Dict]
 ) -> List[Dict]:
+    """
+    Optional post-processing step for UI citation rendering.
+    """
 
     sentences = [
         s.strip()

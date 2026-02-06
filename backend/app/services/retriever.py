@@ -1,8 +1,8 @@
+# backend/app/services/retriever.py
 from typing import List, Dict, Optional
 from collections import defaultdict
 
 from app.memory.summary_memory import load_summary
-
 from app.services.embeddings import embed_query
 from app.vectorstore.store_manager import (
     get_store_for_document,
@@ -40,7 +40,6 @@ def _is_conceptual_query(query: str) -> bool:
 # --------------------------------------------------
 
 def retrieve_context(
-        
     query: str,
     top_k: int,
     document_id: str,
@@ -49,12 +48,10 @@ def retrieve_context(
     query_embedding = embed_query(query)
 
     results = store.search(query_embedding, k=top_k)
-    
 
     memory = load_summary()
     if memory:
         query = f"[Conversation memory]\n{memory}\n\n[User query]\n{query}"
-
 
     contexts: List[Dict] = []
     for r in results:
@@ -65,6 +62,7 @@ def retrieve_context(
             "page": r.get("page"),
             "confidence": r.get("confidence", 0.0),
             "document_id": document_id,
+            "agent": "retrieval_agent",  # 🔹 AGENT TAG
         }
         if context["text"]:
             contexts.append(context)
@@ -73,39 +71,10 @@ def retrieve_context(
 
 
 # --------------------------------------------------
-# 🔹 NEW: EXPLICIT MULTI-DOCUMENT RETRIEVAL (COMPARISON)
+# AGENTIC RETRIEVAL ENTRYPOINT
 # --------------------------------------------------
-
-def retrieve_for_comparison(
-    query: str,
-    top_k: int,
-    document_ids: List[str],
-) -> Dict[str, List[Dict]]:
-    """
-    Retrieve contexts independently for each document.
-    Used ONLY in compare_mode.
-    """
-
-    results: Dict[str, List[Dict]] = {}
-
-    for doc_id in document_ids:
-        try:
-            contexts = retrieve_context(
-                query=query,
-                top_k=top_k,
-                document_id=doc_id,
-            )
-            results[doc_id] = contexts
-        except Exception:
-            # Fail-safe: one bad document should not kill comparison
-            results[doc_id] = []
-
-    return results
-
-
-# --------------------------------------------------
-# HYBRID MULTI-DOCUMENT RETRIEVAL (EXPLICIT ONLY)
-# --------------------------------------------------
+def retrieve_for_comparison(*args, **kwargs):
+    raise NotImplementedError("Comparison retrieval not implemented yet")
 
 def retrieve(
     query: str,
@@ -113,13 +82,9 @@ def retrieve(
     document_id: Optional[str] = None,
 ) -> List[Dict]:
     """
-    Document-isolated by default.
-    Hybrid multi-document retrieval only when document_id is None.
+    AGENT TOOL: retrieval_agent
     """
 
-    # -------------------------------
-    # STRICT DOCUMENT ISOLATION
-    # -------------------------------
     if document_id:
         return retrieve_context(query, k, document_id)
 
@@ -167,6 +132,7 @@ def retrieve(
             enriched = dict(hit)
             enriched["final_score"] = round(final_score, 4)
             enriched["_doc_id"] = store_id
+            enriched["agent"] = "retrieval_agent"
 
             doc_chunks[store_id].append(enriched)
 
