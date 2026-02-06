@@ -4,14 +4,10 @@ import { useChatStore } from "../store/chatStore";
 /* =========================
    API BASE CONFIG
 ========================= */
+import { API_BASE } from "../config/api";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
-if (!API_BASE) {
-  throw new Error(
-    "VITE_API_BASE_URL is not defined. Check Vercel environment variables."
-  );
-}
+
 
 export function useRagStream() {
   const [sources, setSources] = useState([]);
