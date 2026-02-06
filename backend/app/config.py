@@ -5,17 +5,15 @@ import os
 # =====================================================
 # 🔹 ENV LOADING
 # =====================================================
-
 # NOTE:
 # .env is already loaded in main.py via load_dotenv()
-# So we just read from os.environ here
+# So we only read from os.environ here
 
 
 # =====================================================
 # 🔹 LLM PROVIDER (LOCKED TO GROQ)
 # =====================================================
 
-# options: "groq"
 LLM_PROVIDER = "groq"
 
 
@@ -23,9 +21,7 @@ LLM_PROVIDER = "groq"
 # 🔹 GROQ CONFIG
 # =====================================================
 
-# Required
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-
 if not GROQ_API_KEY:
     raise RuntimeError(
         "GROQ_API_KEY is not set. "
@@ -42,36 +38,44 @@ GROQ_MODEL = os.getenv(
 
 
 # =====================================================
-# 🔹 RAG / LLM SETTINGS
+# 🔹 LLM GENERATION SETTINGS
 # =====================================================
 
-# Generation behavior
 LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", 0.2))
+
 LLM_MAX_TOKENS = os.getenv("LLM_MAX_TOKENS")
 LLM_MAX_TOKENS = int(LLM_MAX_TOKENS) if LLM_MAX_TOKENS else None
 
-# Timeout (seconds)
 LLM_TIMEOUT = int(os.getenv("LLM_TIMEOUT", 60))
 
 
 # =====================================================
-# 🔹 EMBEDDING SETTINGS
+# 🔹 EMBEDDING SETTINGS (GEMINI)
 # =====================================================
 
-# MUST match FAISSStore EMBED_DIM
+EMBEDDING_PROVIDER = "gemini"
+
+# Gemini embedding model
 EMBEDDING_MODEL_NAME = os.getenv(
     "EMBEDDING_MODEL_NAME",
-    "sentence-transformers/all-MiniLM-L6-v2"
+    "models/embedding-001"
 )
 
-EMBED_DIM = 384
+# MUST match FAISSStore + store_manager
+EMBED_DIM = 768
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+if not GEMINI_API_KEY:
+    raise RuntimeError(
+        "GEMINI_API_KEY is not set. "
+        "Please define it in your environment or .env file."
+    )
 
 
 # =====================================================
 # 🔹 VECTOR STORE SETTINGS
 # =====================================================
 
-# Base directory where all FAISS document stores live
 VECTORSTORE_BASE_DIR = os.getenv(
     "VECTORSTORE_BASE_DIR",
     "backend/vectorstores"

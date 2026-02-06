@@ -1,32 +1,41 @@
 from typing import List
+import os
+import google.generativeai as genai
+
+# Configure Gemini
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+
+# Gemini embedding model dimension
+EMBED_DIM = 768
 
 
-model = None
-
-def get_model():
-    global model
-    if model is None:
-        from sentence_transformers import SentenceTransformer
-        model = SentenceTransformer("all-MiniLM-L6-v2")
-    return model
-
-
-
-def embed_texts(texts):
+def embed_texts(texts: List[str]) -> List[List[float]]:
+    """
+    Generate embeddings using Gemini (hosted).
+    Safe for low-memory environments like Render free tier.
+    """
     if not texts:
         return []
 
-    model = get_model()
-    embeddings = model.encode(
-        texts,
-        normalize_embeddings=True,
-        convert_to_numpy=True,
+    response = genai.embed_content(
+        model="models/embedding-001",
+        content=texts,
+        task_type="retrieval_document",
     )
-    return embeddings.tolist()
 
-def embed_query(query: str) -> list:
+    # When passing a list, Gemini returns a list of embeddings
+    return response["embedding"]
+
+
+def embed_query(query: str) -> List[float]:
     """
     Embed a single query string.
-    Thin wrapper over embed_texts for retriever usage.
+    Uses retrieval_query task type for better search quality.
     """
-    return embed_texts([query])[0]
+    response = genai.embed_content(
+        model="models/embedding-001",
+        content=query,
+        task_type="retrieval_query",
+    )
+
+    return response["embedding"]

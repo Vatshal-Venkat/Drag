@@ -4,18 +4,22 @@ from typing import Optional, List, Dict
 from rank_bm25 import BM25Okapi
 from app.vectorstore.faiss_store import FAISSStore
 
+# ---------------------------
+# Config
+# ---------------------------
+
 BASE_STORE_DIR = "backend/vectorstores"
-EMBED_DIM = 384
+EMBED_DIM = 768  # Gemini embeddings dimension
 DEFAULT_STORE_ID = "__default__"
 
 # ---------------------------
-# 🔹 BM25 CACHE (NEW)
+# 🔹 BM25 CACHE
 # ---------------------------
 
 _BM25_CACHE: Dict[str, Dict] = {}
 
 
-def get_bm25_for_store(store: FAISSStore):
+def get_bm25_for_store(store: FAISSStore) -> BM25Okapi:
     """
     Returns cached BM25 index for a store.
     Rebuilds only if metadata size changes.
@@ -25,7 +29,6 @@ def get_bm25_for_store(store: FAISSStore):
     size = len(texts)
 
     cached = _BM25_CACHE.get(store_id)
-
     if cached and cached["size"] == size:
         return cached["bm25"]
 
@@ -41,7 +44,7 @@ def get_bm25_for_store(store: FAISSStore):
 
 
 # ---------------------------
-# EXISTING CODE (UNCHANGED)
+# Store helpers
 # ---------------------------
 
 def _sanitize_id(raw_id: str) -> str:
@@ -53,27 +56,44 @@ def _get_store_dir(store_id: str) -> str:
 
 
 def get_store_for_document(doc_id: str) -> FAISSStore:
+    """
+    Returns a FAISS store for a specific document.
+    Does NOT load anything eagerly.
+    """
     safe_id = _sanitize_id(doc_id)
     store_dir = _get_store_dir(safe_id)
     return FAISSStore(dim=EMBED_DIM, store_dir=store_dir)
 
 
 def get_default_store() -> Optional[FAISSStore]:
+    """
+    Returns the default FAISS store if it exists.
+    """
     store_dir = _get_store_dir(DEFAULT_STORE_ID)
     if not os.path.exists(store_dir):
         return None
+
     return FAISSStore(dim=EMBED_DIM, store_dir=store_dir)
 
 
 def set_default_store_from_document(doc_id: str) -> FAISSStore:
+    """
+    Copies a document store as the default store.
+    """
     source_store = get_store_for_document(doc_id)
     default_store_dir = _get_store_dir(DEFAULT_STORE_ID)
+
     os.makedirs(default_store_dir, exist_ok=True)
     source_store.save()
+
     return FAISSStore(dim=EMBED_DIM, store_dir=default_store_dir)
 
 
 def list_all_document_stores() -> List[FAISSStore]:
+    """
+    Lists all document FAISS stores on disk.
+    No FAISS index is loaded until instantiated.
+    """
     stores: List[FAISSStore] = []
 
     if not os.path.exists(BASE_STORE_DIR):
@@ -85,6 +105,8 @@ def list_all_document_stores() -> List[FAISSStore]:
             continue
 
         if os.path.exists(os.path.join(store_dir, "index.faiss")):
-            stores.append(FAISSStore(dim=EMBED_DIM, store_dir=store_dir))
+            stores.append(
+                FAISSStore(dim=EMBED_DIM, store_dir=store_dir)
+            )
 
     return stores
