@@ -43,6 +43,20 @@ class SessionManager:
     def get_session(self, session_id: str) -> Optional[Dict]:
         return self.sessions.get(session_id)
 
+    def list_sessions(self) -> List[Dict]:
+        """
+        Return lightweight session metadata for UI listing.
+        """
+        return [
+            {
+                "id": s["id"],
+                "title": s["title"],
+                "created_at": s["created_at"],
+                "updated_at": s["updated_at"],
+            }
+            for s in self.sessions.values()
+        ]
+
     # ==================================================
     # MESSAGE HANDLING
     # ==================================================
@@ -96,10 +110,6 @@ class SessionManager:
         user_query: str,
         assistant_answer: str,
     ):
-        """
-        Called ONLY when planner allows write_memory.
-        """
-
         if not should_update_summary(user_query, assistant_answer):
             return
 

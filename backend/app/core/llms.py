@@ -37,15 +37,13 @@ def generate_text(
     messages: List[Dict[str, str]],
     role: LLMRole = "generator",
     stream: bool = False,
-    temperature: float = 0.2,
+    temperature: float = 0.2,  # kept for API consistency (ignored by groq_chat)
     max_tokens: Optional[int] = None,
     provider: Literal["groq"] = "groq",
 ) -> Iterator[str] | str:
     """
     Unified LLM entrypoint.
-
-    Provider:
-    - groq (only supported provider in this deployment)
+    Only GROQ provider is supported.
     """
 
     if provider != "groq":
@@ -57,14 +55,12 @@ def generate_text(
         return groq_stream(
             messages=messages,
             model=DEFAULT_GROQ_MODEL,
-            temperature=temperature,
             max_tokens=max_tokens,
         )
 
     response = groq_chat(
         messages=messages,
         model=DEFAULT_GROQ_MODEL,
-        temperature=temperature,
         max_tokens=max_tokens,
     )
 
@@ -80,10 +76,6 @@ def planner_llm(
     *,
     stream: bool = False,
 ):
-    """
-    Planning / reasoning LLM.
-    Deterministic (temperature = 0).
-    """
     return generate_text(
         messages=messages,
         role="planner",
@@ -97,9 +89,6 @@ def generator_llm(
     *,
     stream: bool = True,
 ):
-    """
-    Main answer generation LLM.
-    """
     return generate_text(
         messages=messages,
         role="generator",
@@ -111,9 +100,6 @@ def generator_llm(
 def summarizer_llm(
     messages: List[Dict[str, str]],
 ):
-    """
-    Summarization / memory compression LLM.
-    """
     return generate_text(
         messages=messages,
         role="summarizer",
@@ -125,9 +111,6 @@ def summarizer_llm(
 def tool_llm(
     messages: List[Dict[str, str]],
 ):
-    """
-    Tool reasoning LLM (reserved for future use).
-    """
     return generate_text(
         messages=messages,
         role="tool",
