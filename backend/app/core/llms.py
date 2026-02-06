@@ -1,4 +1,4 @@
-from typing import List, Dict, Iterator, Optional, Literal
+from typing import List, Dict, Iterator, Literal
 import os
 
 # --------------------------------------------------
@@ -37,8 +37,6 @@ def generate_text(
     messages: List[Dict[str, str]],
     role: LLMRole = "generator",
     stream: bool = False,
-    temperature: float = 0.2,  # kept for API consistency (ignored by groq_chat)
-    max_tokens: Optional[int] = None,
     provider: Literal["groq"] = "groq",
 ) -> Iterator[str] | str:
     """
@@ -47,21 +45,17 @@ def generate_text(
     """
 
     if provider != "groq":
-        raise RuntimeError(
-            "Only GROQ provider is supported in this deployment."
-        )
+        raise RuntimeError("Only GROQ provider is supported")
 
     if stream:
         return groq_stream(
             messages=messages,
             model=DEFAULT_GROQ_MODEL,
-            max_tokens=max_tokens,
         )
 
     response = groq_chat(
         messages=messages,
         model=DEFAULT_GROQ_MODEL,
-        max_tokens=max_tokens,
     )
 
     return response.choices[0].message.content.strip()
@@ -80,7 +74,6 @@ def planner_llm(
         messages=messages,
         role="planner",
         stream=stream,
-        temperature=0.0,
     )
 
 
@@ -93,7 +86,6 @@ def generator_llm(
         messages=messages,
         role="generator",
         stream=stream,
-        temperature=0.2,
     )
 
 
@@ -104,7 +96,6 @@ def summarizer_llm(
         messages=messages,
         role="summarizer",
         stream=False,
-        temperature=0.1,
     )
 
 
@@ -115,5 +106,4 @@ def tool_llm(
         messages=messages,
         role="tool",
         stream=False,
-        temperature=0.0,
     )
