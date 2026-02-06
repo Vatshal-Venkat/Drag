@@ -2,14 +2,7 @@ from typing import List, Dict, Iterator, Optional, Literal
 import os
 
 # --------------------------------------------------
-# Local model imports (lazy-loaded)
-# --------------------------------------------------
-
-from transformers import AutoTokenizer, AutoModelForCausalLM
-import torch
-
-# --------------------------------------------------
-# External providers
+# External provider (GROQ ONLY)
 # --------------------------------------------------
 
 from app.llm.groq import groq_chat, groq_stream
@@ -23,7 +16,7 @@ LLMRole = Literal[
     "generator",
     "summarizer",
     "chat",
-    "tool",          # 🔹 NEW (Phase 4C)
+    "tool",
 ]
 
 # ==================================================
@@ -35,42 +28,8 @@ DEFAULT_GROQ_MODEL = os.getenv(
     "llama-3.1-8b-instant",
 )
 
-DEFAULT_LOCAL_MODEL = "mistralai/Mistral-7B-Instruct-v0.2"
-
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-
 # ==================================================
-# LOCAL MODEL (LAZY LOAD)
-# ==================================================
-
-_local_tokenizer: Optional[AutoTokenizer] = None
-_local_model: Optional[AutoModelForCausalLM] = None
-
-
-def _load_local_model():
-    """
-    Lazy-load the local HuggingFace model.
-    This ensures we do NOT load large models
-    unless explicitly required.
-    """
-    global _local_model, _local_tokenizer
-
-    if _local_model is not None and _local_tokenizer is not None:
-        return
-
-    _local_tokenizer = AutoTokenizer.from_pretrained(
-        DEFAULT_LOCAL_MODEL
-    )
-
-    _local_model = AutoModelForCausalLM.from_pretrained(
-        DEFAULT_LOCAL_MODEL,
-        torch_dtype=torch.float16 if DEVICE == "cuda" else torch.float32,
-        device_map="auto",
-    )
-
-
-# ==================================================
-# PUBLIC LLM INTERFACE (AGENTIC, UNIFIED)
+# PUBLIC LLM INTERFACE
 # ==================================================
 
 def generate_text(
@@ -80,81 +39,40 @@ def generate_text(
     stream: bool = False,
     temperature: float = 0.2,
     max_tokens: Optional[int] = None,
-    provider: Literal["groq", "local"] = "groq",
+    provider: Literal["groq"] = "groq",
 ) -> Iterator[str] | str:
     """
-    Unified LLM entrypoint for ALL agents.
+    Unified LLM entrypoint.
 
-    Roles supported:
-    - planner
-    - generator
-    - summarizer
-    - chat
-    - tool
-
-    Providers:
-    - groq (default)
-    - local (offline / fallback)
+    Provider:
+    - groq (only supported provider in this deployment)
     """
 
-    # --------------------------------------------------
-    # GROQ PROVIDER (DEFAULT)
-    # --------------------------------------------------
-
-    if provider == "groq":
-        if stream:
-            return groq_stream(
-                messages=messages,
-                model=DEFAULT_GROQ_MODEL,
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
-
-        response = groq_chat(
-            messages=messages,
-            model=DEFAULT_GROQ_MODEL,
+    if provider != "groq":
+        raise RuntimeError(
+            "Only GROQ provider is supported in this deployment."
         )
 
-        # Explicit, readable return (no compression)
-        return response.choices[0].message.content.strip()
+    if stream:
+        return groq_stream(
+            messages=messages,
+            model=DEFAULT_GROQ_MODEL,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
 
-    # --------------------------------------------------
-    # LOCAL MODEL (FALLBACK / OFFLINE)
-    # --------------------------------------------------
-
-    _load_local_model()
-
-    # Build a readable prompt (kept explicit)
-    prompt_parts: List[str] = []
-
-    for msg in messages:
-        role_label = msg.get("role", "user").capitalize()
-        content = msg.get("content", "")
-        prompt_parts.append(f"{role_label}: {content}")
-
-    prompt = "\n".join(prompt_parts)
-
-    inputs = _local_tokenizer(
-        prompt,
-        return_tensors="pt",
-    ).to(DEVICE)
-
-    outputs = _local_model.generate(
-        **inputs,
-        max_new_tokens=max_tokens or 512,
-        do_sample=False,
+    response = groq_chat(
+        messages=messages,
+        model=DEFAULT_GROQ_MODEL,
+        temperature=temperature,
+        max_tokens=max_tokens,
     )
 
-    decoded = _local_tokenizer.decode(
-        outputs[0],
-        skip_special_tokens=True,
-    )
-
-    return decoded.strip()
+    return response.choices[0].message.content.strip()
 
 
 # ==================================================
-# ROLE-SPECIFIC HELPERS (KEPT EXPLICIT)
+# ROLE-SPECIFIC HELPERS
 # ==================================================
 
 def planner_llm(
@@ -163,8 +81,8 @@ def planner_llm(
     stream: bool = False,
 ):
     """
-    LLM call dedicated for planning / ReAct.
-    Temperature forced to 0.0 for determinism.
+    Planning / reasoning LLM.
+    Deterministic (temperature = 0).
     """
     return generate_text(
         messages=messages,
@@ -180,7 +98,7 @@ def generator_llm(
     stream: bool = True,
 ):
     """
-    LLM call dedicated for answer generation.
+    Main answer generation LLM.
     """
     return generate_text(
         messages=messages,
@@ -194,7 +112,7 @@ def summarizer_llm(
     messages: List[Dict[str, str]],
 ):
     """
-    LLM call dedicated for summarization / memory compression.
+    Summarization / memory compression LLM.
     """
     return generate_text(
         messages=messages,
@@ -208,8 +126,7 @@ def tool_llm(
     messages: List[Dict[str, str]],
 ):
     """
-    LLM call dedicated for tool reasoning (if ever needed).
-    Not used yet, but reserved for future extensions.
+    Tool reasoning LLM (reserved for future use).
     """
     return generate_text(
         messages=messages,
