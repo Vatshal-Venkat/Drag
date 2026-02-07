@@ -5,9 +5,7 @@ import os
 # =====================================================
 # 🔹 ENV LOADING
 # =====================================================
-# NOTE:
-# .env is already loaded in main.py via load_dotenv()
-# So we only read from os.environ here
+# NOTE: .env is already loaded in main.py via load_dotenv()
 
 
 # =====================================================
@@ -28,11 +26,8 @@ if not GROQ_API_KEY:
         "Please define it in your environment or .env file."
     )
 
-# Model options:
-# - llama-3.1-8b-instant  (fast, cheap, good)
-# - llama-3.1-70b-versatile (better quality, slower)
 GROQ_MODEL = os.getenv(
-    "GROQ_MODEL",
+    "GROQ_MODEL", 
     "llama-3.1-8b-instant"
 )
 
@@ -43,8 +38,9 @@ GROQ_MODEL = os.getenv(
 
 LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", 0.2))
 
-LLM_MAX_TOKENS = os.getenv("LLM_MAX_TOKENS")
-LLM_MAX_TOKENS = int(LLM_MAX_TOKENS) if LLM_MAX_TOKENS else None
+# Fixed typo: changed LL_MAX_TOKENS to a temporary local for parsing
+_raw_max_tokens = os.getenv("LLM_MAX_TOKENS")
+LLM_MAX_TOKENS = int(_raw_max_tokens) if _raw_max_tokens else None
 
 LLM_TIMEOUT = int(os.getenv("LLM_TIMEOUT", 60))
 
@@ -55,13 +51,13 @@ LLM_TIMEOUT = int(os.getenv("LLM_TIMEOUT", 60))
 
 EMBEDDING_PROVIDER = "gemini"
 
-# Gemini embedding model
+# Using the verified model name from our diagnostic script
 EMBEDDING_MODEL_NAME = os.getenv(
-    "EMBEDDING_MODEL_NAME",
-    "models/embedding-001"
+    "EMBEDDING_MODEL_NAME", 
+    "models/gemini-embedding-001" 
 )
 
-# MUST match FAISSStore + store_manager
+# This 768 is now enforced in embeddings.py via output_dimensionality
 EMBED_DIM = 768
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -76,9 +72,10 @@ if not GEMINI_API_KEY:
 # 🔹 VECTOR STORE SETTINGS
 # =====================================================
 
+# Ensures vectorstores are created relative to the backend execution folder
 VECTORSTORE_BASE_DIR = os.getenv(
-    "VECTORSTORE_BASE_DIR",
-    "backend/vectorstores"
+    "VECTORSTORE_BASE_DIR", 
+    os.path.join(os.getcwd(), "vectorstores")
 )
 
 

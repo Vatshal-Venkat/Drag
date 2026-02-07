@@ -18,5 +18,10 @@
     "document_id": "T3.pdf",
     "pages": 1,
     "chunks": 5
+  },
+  "VenkatVatshal Resume.pdf": {
+    "document_id": "VenkatVatshal Resume.pdf",
+    "pages": 2,
+    "chunks": 9
   }
 }

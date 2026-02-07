@@ -3,8 +3,7 @@ uvicorn
 python-multipart
 pypdf
 python-docx
-google-generativeai
-
+google-genai
 groq
 python-dotenv
 rank-bm25
