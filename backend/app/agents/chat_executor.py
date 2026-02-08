@@ -88,7 +88,15 @@ def execute_chat(
             if name == "retrieve":
                 retrieved_contexts = result
             elif name == "rerank":
+                if retrieved_contexts and not retrieved_contexts[0].get("_suggest_rerank", True):
+                    tool_observations.append({
+                        "tool": "rerank",
+                        "result": "skipped (high-confidence retrieval)",
+                    })
+                    continue
+
                 reranked_contexts = result
+
 
             tool_observations.append({
                 "tool": name,

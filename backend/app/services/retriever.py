@@ -19,6 +19,9 @@ BM25_WEIGHT_FACTUAL = 0.2
 SEMANTIC_WEIGHT_CONCEPTUAL = 0.4
 BM25_WEIGHT_CONCEPTUAL = 0.6
 
+# 🔹 Phase-2 ReAct threshold
+RERANK_CONFIDENCE_THRESHOLD = 0.75
+
 
 def _is_conceptual_query(query: str) -> bool:
     keywords = [
@@ -33,6 +36,22 @@ def _is_conceptual_query(query: str) -> bool:
     ]
     q = query.lower()
     return any(k in q for k in keywords)
+
+
+def _should_rerank(contexts: List[Dict]) -> bool:
+    """
+    Phase-2 ReAct:
+    Decide locally if reranking is worth it.
+    """
+    if not contexts:
+        return False
+
+    avg_conf = sum(
+        float(c.get("final_score", c.get("confidence", 0.0)))
+        for c in contexts
+    ) / len(contexts)
+
+    return avg_conf < RERANK_CONFIDENCE_THRESHOLD
 
 
 # --------------------------------------------------
@@ -62,7 +81,7 @@ def retrieve_context(
             "page": r.get("page"),
             "confidence": r.get("confidence", 0.0),
             "document_id": document_id,
-            "agent": "retrieval_agent",  # 🔹 AGENT TAG
+            "agent": "retrieval_agent",
         }
         if context["text"]:
             contexts.append(context)
@@ -73,8 +92,10 @@ def retrieve_context(
 # --------------------------------------------------
 # AGENTIC RETRIEVAL ENTRYPOINT
 # --------------------------------------------------
+
 def retrieve_for_comparison(*args, **kwargs):
     raise NotImplementedError("Comparison retrieval not implemented yet")
+
 
 def retrieve(
     query: str,
@@ -164,5 +185,10 @@ def retrieve(
 
     for c in final_chunks:
         c.pop("_doc_id", None)
+
+    # 🔹 Phase-2 ReAct signal for executor
+    suggest_rerank = _should_rerank(final_chunks)
+    for c in final_chunks:
+        c["_suggest_rerank"] = suggest_rerank
 
     return final_chunks[:k]
