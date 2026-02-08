@@ -1,14 +1,11 @@
 import json
-from typing import Dict, List, Any
+from typing import Dict, Any
 
 from app.core.llms import planner_llm
 from app.core.session_manager import session_manager
 
-# ==================================================
-# REACT-STYLE PLANNER AGENT (PHASE 4C)
-# ==================================================
 
-PLANNER_SYSTEM_PROMPT = """You are an Agentic RAG Planner.
+PLANNER_SYSTEM_PROMPT = """You are a Planner Agent.
 
 Your job is to decide WHAT actions to take, not to answer the user.
 
@@ -16,28 +13,16 @@ Available actions:
 - chat
 - retrieve
 - rerank
-- summarize
-- compare
-- read_memory
-- write_memory
 - generate
-
-Tool actions (use ONLY if needed):
-- tool:web_search      (search the web for fresh info)
-- tool:calculator      (math / numeric reasoning)
 
 Rules:
 1. Output ONLY valid JSON
 2. Do NOT explain reasoning
 3. Do NOT answer the user
 4. Choose the MINIMUM actions needed
-5. Tool actions MUST come before generate
-6. Always end with "generate" unless chat-only
+5. Always end with "generate" unless chat-only
 """
 
-# --------------------------------------------------
-# PUBLIC API
-# --------------------------------------------------
 
 def plan_next_steps(
     *,
@@ -71,10 +56,7 @@ Return a JSON plan with this schema:
 
 {{
   "actions": [
-    {{
-      "name": "<action_name>",
-      "params": {{ }}
-    }}
+    {{ "name": "<action_name>", "params": {{ }} }}
   ]
 }}
 """.strip()

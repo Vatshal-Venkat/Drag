@@ -1,8 +1,8 @@
 from typing import Dict, Callable, Any
 
-# ==================================================
-# TOOL REGISTRY
-# ==================================================
+from app.services.retriever import retrieve
+from app.services.reranker import rerank_contexts
+
 
 _TOOL_REGISTRY: Dict[str, Callable[..., Any]] = {}
 
@@ -12,6 +12,16 @@ def register_tool(name: str):
         _TOOL_REGISTRY[name] = fn
         return fn
     return decorator
+
+
+@register_tool("retrieve")
+def _retrieve_tool(**kwargs):
+    return retrieve(**kwargs)
+
+
+@register_tool("rerank")
+def _rerank_tool(**kwargs):
+    return rerank_contexts(**kwargs)
 
 
 def get_tool(name: str) -> Callable[..., Any] | None:

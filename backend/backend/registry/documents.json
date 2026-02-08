@@ -23,5 +23,10 @@
     "document_id": "VenkatVatshal Resume.pdf",
     "pages": 2,
     "chunks": 9
+  },
+  "download.pdf": {
+    "document_id": "download.pdf",
+    "pages": 2,
+    "chunks": 9
   }
 }

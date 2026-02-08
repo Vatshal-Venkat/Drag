@@ -1,15 +1,11 @@
 from typing import List, Dict, Generator
-import json
 
 from app.core.session_manager import session_manager
-
-from app.services.retriever import retrieve
-from app.services.reranker import rerank_contexts
-from app.services.generator import stream_answer, _stream_llm
 
 from app.agents.planner_agent import plan_next_steps
 from app.tools.tool_registry import get_tool
 
+from app.services.generator import stream_answer, _stream_llm
 from app.utils.context_trimmer import trim_context
 from app.registry.document_registry import list_documents
 
@@ -31,28 +27,16 @@ def execute_chat(
     Yields raw tokens (no SSE / HTTP formatting).
     """
 
-    # --------------------------------------------------
-    # SESSION VALIDATION
-    # --------------------------------------------------
-
     session = session_manager.get_session(session_id)
     if session is None:
         yield "[ERROR] Session not found"
         return
-
-    # --------------------------------------------------
-    # SAVE USER MESSAGE
-    # --------------------------------------------------
 
     session_manager.append_message(
         session_id=session_id,
         role="user",
         content=user_text,
     )
-
-    # --------------------------------------------------
-    # PLANNING (LLM-based)
-    # --------------------------------------------------
 
     plan_obj = plan_next_steps(
         session_id=session_id,
@@ -66,14 +50,14 @@ def execute_chat(
     # CHAT-ONLY PATH
     # --------------------------------------------------
 
-    if "chat" in plan:
+    if plan == ["chat"]:
         prompt = CHAT_PROMPT + "\nUser: " + user_text + "\nAssistant:"
         for token in _stream_llm(prompt):
             yield token
         return
 
     # --------------------------------------------------
-    # AGENTIC RAG PATH
+    # AGENTIC EXECUTION
     # --------------------------------------------------
 
     active_docs = session_manager.get_active_documents(session_id)
@@ -83,44 +67,39 @@ def execute_chat(
     reranked_contexts: List[Dict] = []
     tool_observations: List[Dict] = []
 
-    # --------------------------------------------------
-    # EXECUTION LOOP
-    # --------------------------------------------------
-
     for step in actions:
         name = step.get("name")
         params = step.get("params", {})
 
-        if name == "retrieve":
-            retrieved_contexts = retrieve(
-                user_text,
-                k=6,
+        if name == "generate":
+            break  # explicit terminator
+
+        tool = get_tool(name)
+        if not tool:
+            continue
+
+        try:
+            result = tool(
+                query=user_text,
                 document_id=document_id,
+                **params,
             )
 
-        elif name == "rerank":
-            reranked_contexts = rerank_contexts(
-                user_text,
-                retrieved_contexts,
-                top_k=4,
-            )
+            if name == "retrieve":
+                retrieved_contexts = result
+            elif name == "rerank":
+                reranked_contexts = result
 
-        elif name.startswith("tool:"):
-            tool = get_tool(name)
-            if tool:
-                try:
-                    result = tool(**params)
-                    tool_observations.append({
-                        "tool": name,
-                        "params": params,
-                        "result": result,
-                    })
-                except Exception as e:
-                    tool_observations.append({
-                        "tool": name,
-                        "params": params,
-                        "error": str(e),
-                    })
+            tool_observations.append({
+                "tool": name,
+                "result": "ok",
+            })
+
+        except Exception as e:
+            tool_observations.append({
+                "tool": name,
+                "error": str(e),
+            })
 
     base_contexts = reranked_contexts or retrieved_contexts
 
@@ -133,20 +112,12 @@ def execute_chat(
 
     onboarding_message = ""
     if not context_blocks:
-        if documents_exist:
-            onboarding_message = (
-                "I couldn’t find anything relevant in your uploaded documents "
-                "for this question.\n\n"
-            )
-        else:
-            onboarding_message = (
-                "I don’t see any documents uploaded yet. "
-                "You can upload a file below if you want me to answer based on it.\n\n"
-            )
-
-    # --------------------------------------------------
-    # GENERATION
-    # --------------------------------------------------
+        onboarding_message = (
+            "I couldn’t find anything relevant in your uploaded documents.\n\n"
+            if documents_exist
+            else
+            "I don’t see any documents uploaded yet.\n\n"
+        )
 
     collected_tokens: List[str] = []
 
@@ -161,10 +132,6 @@ def execute_chat(
     ):
         collected_tokens.append(token)
         yield token
-
-    # --------------------------------------------------
-    # SAVE FINAL ANSWER
-    # --------------------------------------------------
 
     full_answer = onboarding_message + "".join(collected_tokens)
 
