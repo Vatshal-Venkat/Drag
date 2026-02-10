@@ -6,24 +6,30 @@ from app.core.session_manager import session_manager
 from app.core.config import MCP_ENABLED
 
 
+COMPARISON_KEYWORDS = [
+    "compare",
+    "comparison",
+    "difference",
+    "different",
+    "vs",
+    "versus",
+    "contrast",
+]
+
+
 PLANNER_SYSTEM_PROMPT = """You are a Planner Agent.
 
 Your job is to decide WHAT actions to take, not to answer the user.
 
-Available local actions:
+Available actions:
 - chat
 - retrieve
 - rerank
 - generate
 - search
 
-Available external actions (ONLY if enabled):
-- mcp:<tool_name>   (external tools via MCP servers)
-
-When to use MCP tools:
-- The question requires fresh, real-time, or external information
-- The answer cannot be found in uploaded documents
-- The task requires capabilities beyond text retrieval (APIs, services, actions)
+External tools (if enabled):
+- mcp:<tool_name>
 
 Rules:
 1. Output ONLY valid JSON
@@ -31,9 +37,14 @@ Rules:
 3. Do NOT answer the user
 4. Choose the MINIMUM actions needed
 5. Prefer local tools before MCP tools
-6. MCP tools MUST appear before "generate"
+6. MCP tools MUST come before generate
 7. Always end with "generate" unless chat-only
 """
+
+
+def _is_comparison_query(query: str) -> bool:
+    q = query.lower()
+    return any(k in q for k in COMPARISON_KEYWORDS)
 
 
 def plan_next_steps(
@@ -48,6 +59,17 @@ def plan_next_steps(
     )
 
     active_docs = session_manager.get_active_documents(session_id)
+
+    # --------------------------------------------------
+    # 🔹 AUTO-COMPARISON MODE
+    # --------------------------------------------------
+    if _is_comparison_query(user_query) and len(active_docs) >= 2:
+        return {
+            "actions": [
+                {"name": "retrieve", "params": {}},
+                {"name": "generate", "params": {"compare_mode": True}},
+            ]
+        }
 
     context_snapshot = {
         "recent_messages": [
@@ -72,10 +94,6 @@ Return a JSON plan with this schema:
     {{ "name": "<action_name>", "params": {{ }} }}
   ]
 }}
-
-Notes:
-- Use "mcp:<tool_name>" only if MCP is enabled
-- Do NOT invent MCP tool names
 """.strip()
 
     messages = [
@@ -89,17 +107,12 @@ Notes:
         plan = json.loads(raw_output)
         assert "actions" in plan
     except Exception:
-        # Safe fallback (local-only)
         plan = {
-            "actions": (
-                [{"name": "chat", "params": {}}]
-                if not active_docs
-                else [
-                    {"name": "retrieve", "params": {}},
-                    {"name": "rerank", "params": {}},
-                    {"name": "generate", "params": {}},
-                ]
-            )
+            "actions": [
+                {"name": "retrieve", "params": {}},
+                {"name": "rerank", "params": {}},
+                {"name": "generate", "params": {}},
+            ]
         }
 
     return plan

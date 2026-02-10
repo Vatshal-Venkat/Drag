@@ -1,6 +1,7 @@
 # backend/app/services/retriever.py
 from typing import List, Dict, Optional
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from app.memory.summary_memory import load_summary
 from app.services.embeddings import embed_query
@@ -90,12 +91,53 @@ def retrieve_context(
 
 
 # --------------------------------------------------
-# AGENTIC RETRIEVAL ENTRYPOINT
+# COMPARISON RETRIEVAL (PARALLEL + SAFE)
 # --------------------------------------------------
 
-def retrieve_for_comparison(*args, **kwargs):
-    raise NotImplementedError("Comparison retrieval not implemented yet")
+def retrieve_for_comparison(
+    *,
+    query: str,
+    document_ids: List[str],
+    top_k: int,
+) -> Dict[str, List[Dict]]:
+    """
+    Parallel comparison retrieval.
 
+    Returns:
+    {
+        document_id: [contexts...]
+    }
+    """
+
+    grouped_contexts: Dict[str, List[Dict]] = {}
+
+    with ThreadPoolExecutor(
+        max_workers=min(len(document_ids), 4)
+    ) as executor:
+
+        futures = {
+            executor.submit(
+                retrieve_context,
+                query,
+                top_k,
+                doc_id,
+            ): doc_id
+            for doc_id in document_ids
+        }
+
+        for future in as_completed(futures):
+            doc_id = futures[future]
+            try:
+                grouped_contexts[doc_id] = future.result()
+            except Exception:
+                grouped_contexts[doc_id] = []
+
+    return grouped_contexts
+
+
+# --------------------------------------------------
+# AGENTIC RETRIEVAL ENTRYPOINT
+# --------------------------------------------------
 
 def retrieve(
     query: str,
