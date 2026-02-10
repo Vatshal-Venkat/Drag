@@ -35,6 +35,7 @@ _ACK_PATTERNS = [
     r"^great$",
     r"^very good$",
     r"^nice$",
+    r"^yes$",
     r"^👍$",
 ]
 

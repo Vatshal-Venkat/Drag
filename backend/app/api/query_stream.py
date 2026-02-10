@@ -5,7 +5,7 @@ from typing import Any
 
 from app.memory.summary_memory import load_summary, update_summary
 from app.schemas.rag import QueryRequest
-from app.services.retriever import retrieve_context
+from app.services.retriever import retrieve_context, retrieve_for_comparison
 
 from app.services.generator import (
     stream_answer,
