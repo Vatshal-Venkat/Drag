@@ -19,23 +19,35 @@ from app.routes import chat, sessions, chat_stream
 # -------------------------
 from app.registry import document_registry
 
+# -------------------------
+# MCP
+# -------------------------
+from app.tools.tool_registry import register_mcp_tools
+from app.core.config import MCP_ENABLED
+
+
 app = FastAPI(title="RAG Accelerator")
+
+# -------------------------
+# MCP startup hook
+# -------------------------
+if MCP_ENABLED:
+    register_mcp_tools()
 
 # -------------------------
 # CORS (Frontend support)
 # -------------------------
-# We keep the local origins and add your deployed Vercel URL
 origins = [
-    "https://drag-eosin.vercel.app",  # Production
-    "http://localhost:5173",          # Local Vite default
-    "http://127.0.0.1:5173",          # Local IP default
-    "http://localhost:3000",          # Potential alternative local port
+    "https://drag-eosin.vercel.app",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_credentials=False, # Set to True to support session cookies/auth headers
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -49,12 +61,12 @@ app.include_router(ingest.router)
 # -------------------------
 # RAG APIs
 # -------------------------
-app.include_router(query_stream.router)   # /rag/query/stream
-app.include_router(documents.router)      # /documents
+app.include_router(query_stream.router)
+app.include_router(documents.router)
 
 # -------------------------
 # Chat APIs
 # -------------------------
-app.include_router(sessions.router)       # /sessions
-app.include_router(chat.router)           # /chat/message
-app.include_router(chat_stream.router)    # /chat/stream
+app.include_router(sessions.router)
+app.include_router(chat.router)
+app.include_router(chat_stream.router)

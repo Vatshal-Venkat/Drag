@@ -4,6 +4,8 @@ from app.services.retriever import retrieve
 from app.services.reranker import rerank_contexts
 from app.agents.search_agent import search
 
+from app.mcp.mcp_client import MCPClient
+
 
 _TOOL_REGISTRY: Dict[str, Callable[..., Any]] = {}
 
@@ -30,14 +32,15 @@ def _search_tool(**kwargs):
     return search(**kwargs)
 
 
-def get_tool(name: str) -> Callable[..., Any] | None:
-    return _TOOL_REGISTRY.get(name)
-
-# ADD BELOW existing code
-
-def register_mcp_tools(tools: Dict[str, Callable[..., Any]]):
+def register_mcp_tools():
     """
-    Register tools coming from MCP servers.
+    Discover and register tools from MCP servers.
     """
+    client = MCPClient()
+    tools = client.discover_tools()
     for name, fn in tools.items():
         _TOOL_REGISTRY[name] = fn
+
+
+def get_tool(name: str) -> Callable[..., Any] | None:
+    return _TOOL_REGISTRY.get(name)
