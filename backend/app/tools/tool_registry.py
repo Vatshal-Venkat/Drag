@@ -32,3 +32,12 @@ def _search_tool(**kwargs):
 
 def get_tool(name: str) -> Callable[..., Any] | None:
     return _TOOL_REGISTRY.get(name)
+
+# ADD BELOW existing code
+
+def register_mcp_tools(tools: Dict[str, Callable[..., Any]]):
+    """
+    Register tools coming from MCP servers.
+    """
+    for name, fn in tools.items():
+        _TOOL_REGISTRY[name] = fn

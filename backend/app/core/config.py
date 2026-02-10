@@ -37,3 +37,9 @@ VECTORSTORE_BASE_DIR = os.getenv(
 )
 
 DEBUG = os.getenv("DEBUG", "false").lower() == "true"
+
+# =====================================================
+# 🔹 MCP SETTINGS
+# =====================================================
+MCP_ENABLED = os.getenv("MCP_ENABLED", "false").lower() == "true"
+MCP_SERVER_URLS = os.getenv("MCP_SERVER_URLS", "").split(",") if MCP_ENABLED else []
