@@ -8,6 +8,7 @@ from app.tools.tool_registry import get_tool
 from app.services.generator import stream_answer, _stream_llm
 from app.utils.context_trimmer import trim_context
 from app.registry.document_registry import list_documents
+from app.agents.aggregator_agent import AggregatorAgent
 
 
 CHAT_PROMPT = (
@@ -165,3 +166,28 @@ def execute_chat(
             role="assistant",
             content=full_answer.strip(),
         )
+
+    aggregator = AggregatorAgent()
+
+    for step in actions:
+        name = step.get("name")
+        params = step.get("params", {})
+
+        if name == "generate":
+            break
+
+        # 🔹 Phase-4A: parallel fetch
+        if name == "retrieve" and "search" in plan:
+            aggregated = aggregator.run(
+                query=user_text,
+                document_id=document_id,
+            )
+            retrieved_contexts = aggregated.get("retrieve", [])
+            search_results = aggregated.get("search", [])
+
+            tool_observations.append({
+                "tool": "retrieve+search",
+                "result": "parallel_ok",
+            })
+            continue
+
