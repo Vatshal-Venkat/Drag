@@ -80,7 +80,7 @@ def execute_chat(
 
     # 🔹 Phase-3: passive memory snapshot
     memory_snapshot = session_manager.get_recent_messages(
-        session_id,
+        session_id=session_id,
         limit=5,
     )
 
@@ -196,6 +196,15 @@ def execute_chat(
     ):
         collected_tokens.append(token)
         yield token
+
+    # --------------------------------------------------
+    # 🔹 FOLLOW-UP PROMPT (UX POLISH)
+    # --------------------------------------------------
+
+    follow_up = "\n\nDo you want me to explain more?"
+
+    yield follow_up
+    collected_tokens.append(follow_up)
 
     full_answer = onboarding_message + "".join(collected_tokens)
 
