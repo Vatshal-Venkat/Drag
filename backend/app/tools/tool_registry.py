@@ -2,7 +2,7 @@ from typing import Dict, Callable, Any
 
 from app.services.retriever import retrieve
 from app.services.reranker import rerank_contexts
-from app.agents.search_agent import search
+from app.agents.search_agent import SearchAgent
 
 from app.mcp.mcp_client import MCPClient
 
@@ -29,7 +29,8 @@ def _rerank_tool(**kwargs):
 
 @register_tool("search")
 def _search_tool(**kwargs):
-    return search(**kwargs)
+    agent = SearchAgent()
+    return agent.run(**kwargs)
 
 
 def register_mcp_tools():
