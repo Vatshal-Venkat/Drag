@@ -2,6 +2,7 @@ from typing import Dict, Callable, Any
 
 from app.services.retriever import retrieve
 from app.services.reranker import rerank_contexts
+from app.agents.search_agent import search
 
 
 _TOOL_REGISTRY: Dict[str, Callable[..., Any]] = {}
@@ -22,6 +23,11 @@ def _retrieve_tool(**kwargs):
 @register_tool("rerank")
 def _rerank_tool(**kwargs):
     return rerank_contexts(**kwargs)
+
+
+@register_tool("search")
+def _search_tool(**kwargs):
+    return search(**kwargs)
 
 
 def get_tool(name: str) -> Callable[..., Any] | None:
