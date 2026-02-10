@@ -1,4 +1,5 @@
 from typing import List, Dict, Generator
+import re
 
 from app.core.session_manager import session_manager
 
@@ -18,6 +19,30 @@ CHAT_PROMPT = (
 )
 
 
+# --------------------------------------------------
+# INTENT GUARD (ACKNOWLEDGEMENTS)
+# --------------------------------------------------
+
+_ACK_PATTERNS = [
+    r"^thanks?$",
+    r"^thank you$",
+    r"^thx$",
+    r"^ok$",
+    r"^okay$",
+    r"^fine$",
+    r"^got it$",
+    r"^cool$",
+    r"^great$",
+    r"^very good$",
+    r"^nice$",
+    r"^👍$",
+]
+
+def _is_acknowledgement(text: str) -> bool:
+    text = text.strip().lower()
+    return any(re.match(p, text) for p in _ACK_PATTERNS)
+
+
 def execute_chat(
     *,
     session_id: str,
@@ -31,6 +56,20 @@ def execute_chat(
     session = session_manager.get_session(session_id)
     if session is None:
         yield "[ERROR] Session not found"
+        return
+
+    # --------------------------------------------------
+    # 🔹 ACKNOWLEDGEMENT SHORT-CIRCUIT
+    # --------------------------------------------------
+
+    if _is_acknowledgement(user_text):
+        reply = "You're welcome 🙂"
+        yield reply
+        session_manager.append_message(
+            session_id=session_id,
+            role="assistant",
+            content=reply,
+        )
         return
 
     session_manager.append_message(
@@ -166,28 +205,3 @@ def execute_chat(
             role="assistant",
             content=full_answer.strip(),
         )
-
-    aggregator = AggregatorAgent()
-
-    for step in actions:
-        name = step.get("name")
-        params = step.get("params", {})
-
-        if name == "generate":
-            break
-
-        # 🔹 Phase-4A: parallel fetch
-        if name == "retrieve" and "search" in plan:
-            aggregated = aggregator.run(
-                query=user_text,
-                document_id=document_id,
-            )
-            retrieved_contexts = aggregated.get("retrieve", [])
-            search_results = aggregated.get("search", [])
-
-            tool_observations.append({
-                "tool": "retrieve+search",
-                "result": "parallel_ok",
-            })
-            continue
-
