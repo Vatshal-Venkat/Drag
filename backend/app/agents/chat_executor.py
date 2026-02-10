@@ -38,6 +38,12 @@ def execute_chat(
         content=user_text,
     )
 
+    # 🔹 Phase-3: passive memory snapshot
+    memory_snapshot = session_manager.get_recent_messages(
+        session_id,
+        limit=5,
+    )
+
     plan_obj = plan_next_steps(
         session_id=session_id,
         user_query=user_text,
@@ -65,6 +71,7 @@ def execute_chat(
 
     retrieved_contexts: List[Dict] = []
     reranked_contexts: List[Dict] = []
+    search_results: List[Dict] = []
     tool_observations: List[Dict] = []
 
     for step in actions:
@@ -72,7 +79,7 @@ def execute_chat(
         params = step.get("params", {})
 
         if name == "generate":
-            break  # explicit terminator
+            break
 
         tool = get_tool(name)
         if not tool:
@@ -87,6 +94,7 @@ def execute_chat(
 
             if name == "retrieve":
                 retrieved_contexts = result
+
             elif name == "rerank":
                 if retrieved_contexts and not retrieved_contexts[0].get("_suggest_rerank", True):
                     tool_observations.append({
@@ -94,14 +102,22 @@ def execute_chat(
                         "result": "skipped (high-confidence retrieval)",
                     })
                     continue
-
                 reranked_contexts = result
 
+            elif name == "search":
+                search_results = result
 
             tool_observations.append({
                 "tool": name,
                 "result": "ok",
             })
+
+            # 🔹 Phase-3: persist observation
+            session_manager.add_observation(
+                session_id,
+                step=name,
+                value="ok",
+            )
 
         except Exception as e:
             tool_observations.append({
@@ -134,7 +150,7 @@ def execute_chat(
         contexts=context_blocks,
         observations=[
             {"step": "plan", "value": plan},
-            {"step": "documents_used", "value": used_docs},
+            {"step": "memory", "value": memory_snapshot},
             {"step": "tools", "value": tool_observations},
         ],
     ):
