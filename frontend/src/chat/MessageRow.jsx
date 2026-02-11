@@ -2,22 +2,18 @@ import { useState, useRef, useEffect } from "react";
 import SourceCitations from "../components/SourceCitations";
 
 /* ================================
-   Similarity Color Mapping
+   Utilities
 ================================ */
-function getSimilarityColor(score) {
-  if (score > 0.8) return "#16a34a";
-  if (score >= 0.6) return "#facc15";
-  return "#dc2626";
+
+function getSimilarityPercent(score) {
+  return Math.min(Math.max(score * 100, 0), 100);
 }
 
-/* ================================
-   Section Parser
-================================ */
 function parseSections(content) {
   const regex =
     /Section\s+\d+\s+\(Similarity:\s+([\d.]+)\)/g;
-  const matches = [...content.matchAll(regex)];
 
+  const matches = [...content.matchAll(regex)];
   if (!matches.length) return null;
 
   const sections = [];
@@ -31,6 +27,7 @@ function parseSections(content) {
 
     const title = matches[i][0];
     const similarity = parseFloat(matches[i][1]);
+
     const body = content
       .slice(start + title.length, end)
       .trim();
@@ -42,17 +39,35 @@ function parseSections(content) {
 }
 
 /* ================================
-   Animated Expandable Section
+   Split Document A / B
 ================================ */
-function AnimatedSection({ open, children }) {
+
+function splitDocuments(body) {
+  const parts = body.split(/Document\s+[A-Z]:/g);
+
+  if (parts.length < 3) {
+    return { left: body, right: null };
+  }
+
+  return {
+    left: parts[1]?.trim(),
+    right: parts[2]?.trim(),
+  };
+}
+
+/* ================================
+   Animated Section
+================================ */
+
+function AnimatedSection({ open, glow, children }) {
   const ref = useRef(null);
 
   useEffect(() => {
     if (!ref.current) return;
 
     if (open) {
-      const scrollHeight = ref.current.scrollHeight;
-      ref.current.style.maxHeight = scrollHeight + "px";
+      const height = ref.current.scrollHeight;
+      ref.current.style.maxHeight = height + "px";
       ref.current.style.opacity = 1;
     } else {
       ref.current.style.maxHeight = "0px";
@@ -68,10 +83,20 @@ function AnimatedSection({ open, children }) {
         maxHeight: 0,
         opacity: 0,
         transition:
-          "max-height 0.35s ease, opacity 0.3s ease",
+          "max-height 0.4s ease, opacity 0.3s ease",
       }}
     >
-      <div style={{ paddingTop: 10 }}>{children}</div>
+      <div
+        style={{
+          paddingTop: 12,
+          boxShadow: glow
+            ? "0 0 18px rgba(0,229,255,0.25)"
+            : "none",
+          transition: "box-shadow 0.4s ease",
+        }}
+      >
+        {children}
+      </div>
     </div>
   );
 }
@@ -79,6 +104,7 @@ function AnimatedSection({ open, children }) {
 /* ================================
    Main Component
 ================================ */
+
 export default function MessageRow({
   role,
   content,
@@ -86,9 +112,15 @@ export default function MessageRow({
   timestamp,
 }) {
   const isUser = role === "user";
-  const [copied, setCopied] = useState(false);
-  const [openSections, setOpenSections] = useState({});
-  const [viewMode, setViewMode] = useState("structured");
+
+  const [openSections, setOpenSections] =
+    useState({});
+  const [viewMode, setViewMode] =
+    useState("structured");
+  const [copied, setCopied] =
+    useState(false);
+
+  const sectionRefs = useRef({});
 
   const fallback =
     content?.includes(
@@ -100,18 +132,40 @@ export default function MessageRow({
       ? parseSections(content || "")
       : null;
 
-  /* Auto-expand high similarity sections */
+  /* ================================
+     Auto Open + Auto Scroll
+  ================================= */
+
   useEffect(() => {
     if (!sections) return;
 
     const autoOpen = {};
+    let firstHighIndex = null;
+
     sections.forEach((sec, i) => {
       if (sec.similarity > 0.85) {
         autoOpen[i] = true;
+        if (firstHighIndex === null) {
+          firstHighIndex = i;
+        }
       }
     });
 
     setOpenSections(autoOpen);
+
+    if (
+      firstHighIndex !== null &&
+      sectionRefs.current[firstHighIndex]
+    ) {
+      setTimeout(() => {
+        sectionRefs.current[
+          firstHighIndex
+        ].scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      }, 400);
+    }
   }, [content]);
 
   function toggleSection(i) {
@@ -127,6 +181,10 @@ export default function MessageRow({
     setTimeout(() => setCopied(false), 1200);
   }
 
+  /* ================================
+     Render
+  ================================= */
+
   return (
     <div
       style={{
@@ -134,27 +192,28 @@ export default function MessageRow({
         justifyContent: isUser
           ? "flex-end"
           : "flex-start",
-        marginBottom: isUser ? 16 : 26,
+        marginBottom: isUser ? 16 : 28,
       }}
     >
       <div
         style={{
-          maxWidth: "70%",
+          maxWidth: "80%",
           padding: isUser ? "12px 14px" : 0,
-          background: isUser ? "#1f2933" : "transparent",
-          color: "#e5e7eb",
+          background: isUser
+            ? "#1f2933"
+            : "transparent",
           borderRadius: isUser ? 12 : 0,
+          color: "#e5e7eb",
           whiteSpace: "pre-wrap",
-          lineHeight: 1.65,
         }}
       >
-        {/* ================= USER ================= */}
+        {/* USER */}
         {isUser && <div>{content}</div>}
 
-        {/* ================= ASSISTANT ================= */}
+        {/* ASSISTANT */}
         {!isUser && (
           <>
-            {/* View Toggle */}
+            {/* Toggle */}
             {sections && (
               <div style={styles.toggleRow}>
                 <button
@@ -175,78 +234,113 @@ export default function MessageRow({
                       ? styles.activeBtn
                       : styles.btn
                   }
-                  onClick={() => setViewMode("raw")}
+                  onClick={() =>
+                    setViewMode("raw")
+                  }
                 >
                   Raw
                 </button>
               </div>
             )}
 
-            {/* Fallback UI */}
+            {/* Fallback */}
             {fallback && (
               <div style={styles.fallback}>
-                ⚠️ Documents do not have strongly
-                matching sections.
-                <br />
-                Showing general comparison instead.
+                ⚠️ No strong section
+                alignment detected.
               </div>
             )}
 
             {/* Structured View */}
             {sections &&
               viewMode === "structured" &&
-              sections.map((sec, i) => (
-                <div key={i} style={styles.sectionBox}>
-                  <div
-                    style={styles.sectionHeader}
-                    onClick={() => toggleSection(i)}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                      }}
-                    >
-                      <span
-                        style={{
-                          transform: openSections[i]
-                            ? "rotate(90deg)"
-                            : "rotate(0deg)",
-                          transition:
-                            "transform 0.25s ease",
-                        }}
-                      >
-                        ▶
-                      </span>
+              sections.map((sec, i) => {
+                const percent =
+                  getSimilarityPercent(
+                    sec.similarity
+                  );
 
+                const { left, right } =
+                  splitDocuments(sec.body);
+
+                return (
+                  <div
+                    key={i}
+                    ref={(el) =>
+                      (sectionRefs.current[
+                        i
+                      ] = el)
+                    }
+                    style={styles.sectionBox}
+                  >
+                    {/* Header */}
+                    <div
+                      style={
+                        styles.sectionHeader
+                      }
+                      onClick={() =>
+                        toggleSection(i)
+                      }
+                    >
                       <strong>
                         {sec.title}
                       </strong>
+
+                      {/* Progress Bar */}
+                      <div
+                        style={
+                          styles.progressWrap
+                        }
+                      >
+                        <div
+                          style={{
+                            ...styles.progressFill,
+                            width:
+                              percent + "%",
+                          }}
+                        />
+                      </div>
                     </div>
 
-                    <span
-                      style={{
-                        ...styles.badge,
-                        background:
-                          getSimilarityColor(
-                            sec.similarity
-                          ),
-                      }}
+                    {/* Content */}
+                    <AnimatedSection
+                      open={
+                        openSections[i]
+                      }
+                      glow={
+                        openSections[i]
+                      }
                     >
-                      {sec.similarity}
-                    </span>
+                      {/* Side-by-side layout */}
+                      <div
+                        style={
+                          styles.diffLayout
+                        }
+                      >
+                        <div
+                          style={
+                            styles.docColumn
+                          }
+                        >
+                          {left}
+                        </div>
+
+                        {right && (
+                          <div
+                            style={
+                              styles.docColumn
+                            }
+                          >
+                            {right}
+                          </div>
+                        )}
+                      </div>
+                    </AnimatedSection>
                   </div>
+                );
+              })}
 
-                  <AnimatedSection
-                    open={openSections[i]}
-                  >
-                    {sec.body}
-                  </AnimatedSection>
-                </div>
-              ))}
-
-            {/* Raw View */}
+            {/* Raw */}
             {(!sections ||
               viewMode === "raw") && (
               <div>{content}</div>
@@ -257,13 +351,19 @@ export default function MessageRow({
               style={styles.copy}
               onClick={handleCopy}
             >
-              {copied ? "Copied" : "Copy"}
+              {copied
+                ? "Copied"
+                : "Copy"}
             </div>
 
             {/* Sources */}
             {citations.length > 0 && (
-              <div style={{ marginTop: 12 }}>
-                <div style={styles.sourceTitle}>
+              <div style={{ marginTop: 14 }}>
+                <div
+                  style={
+                    styles.sourceTitle
+                  }
+                >
                   Sources used
                 </div>
                 <SourceCitations
@@ -274,7 +374,6 @@ export default function MessageRow({
           </>
         )}
 
-        {/* Timestamp */}
         {timestamp && isUser && (
           <div style={styles.timestamp}>
             {timestamp}
@@ -288,11 +387,12 @@ export default function MessageRow({
 /* ================================
    Styles
 ================================ */
+
 const styles = {
   toggleRow: {
     display: "flex",
     gap: 8,
-    marginBottom: 10,
+    marginBottom: 12,
   },
 
   btn: {
@@ -319,29 +419,50 @@ const styles = {
     padding: 12,
     borderRadius: 10,
     marginBottom: 14,
-    fontSize: 13,
     color: "#facc15",
   },
 
   sectionBox: {
     border: "1px solid #1e293b",
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 14,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 18,
     background: "#0f172a",
   },
 
   sectionHeader: {
-    display: "flex",
-    justifyContent: "space-between",
     cursor: "pointer",
+    marginBottom: 10,
   },
 
-  badge: {
-    padding: "4px 8px",
-    borderRadius: 8,
-    fontSize: 12,
-    color: "#000",
+  progressWrap: {
+    height: 6,
+    background: "#1e293b",
+    borderRadius: 999,
+    marginTop: 6,
+    overflow: "hidden",
+  },
+
+  progressFill: {
+    height: "100%",
+    background:
+      "linear-gradient(90deg,#00e5ff,#2979ff)",
+    transition: "width 0.4s ease",
+  },
+
+  diffLayout: {
+    display: "grid",
+    gridTemplateColumns:
+      "1fr 1fr",
+    gap: 20,
+  },
+
+  docColumn: {
+    background: "#111827",
+    padding: 12,
+    borderRadius: 10,
+    fontSize: 14,
+    lineHeight: 1.6,
   },
 
   copy: {
