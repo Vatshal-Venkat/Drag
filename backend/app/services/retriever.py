@@ -2,9 +2,10 @@
 from typing import List, Dict, Optional
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import math
 
 from app.memory.summary_memory import load_summary
-from app.services.embeddings import embed_query
+from app.services.embeddings import embed_query, embed_texts
 from app.vectorstore.store_manager import (
     get_store_for_document,
     list_all_document_stores,
@@ -20,9 +21,84 @@ BM25_WEIGHT_FACTUAL = 0.2
 SEMANTIC_WEIGHT_CONCEPTUAL = 0.4
 BM25_WEIGHT_CONCEPTUAL = 0.6
 
-# 🔹 Phase-2 ReAct threshold
 RERANK_CONFIDENCE_THRESHOLD = 0.75
 
+
+# ==================================================
+# 🔹 COSINE SIMILARITY
+# ==================================================
+
+def _cosine_similarity(a: List[float], b: List[float]) -> float:
+    dot = sum(x * y for x, y in zip(a, b))
+    norm_a = math.sqrt(sum(x * x for x in a))
+    norm_b = math.sqrt(sum(x * x for x in b))
+
+    if norm_a == 0.0 or norm_b == 0.0:
+        return 0.0
+
+    return dot / (norm_a * norm_b)
+
+
+# ==================================================
+# 🔹 HYBRID SECTION ALIGNMENT
+# ==================================================
+
+def align_sections_hybrid(
+    grouped_contexts: Dict[str, List[Dict]]
+) -> List[Dict]:
+    """
+    Hybrid alignment:
+    1. Compute embeddings per chunk
+    2. Pair chunks via cosine similarity
+    3. LLM will later refine structured diff
+    """
+
+    doc_ids = list(grouped_contexts.keys())
+    if len(doc_ids) < 2:
+        return []
+
+    # Currently aligning first two documents only
+    doc_a, doc_b = doc_ids[0], doc_ids[1]
+
+    contexts_a = grouped_contexts.get(doc_a, [])
+    contexts_b = grouped_contexts.get(doc_b, [])
+
+    if not contexts_a or not contexts_b:
+        return []
+
+    texts_a = [c.get("text", "") for c in contexts_a]
+    texts_b = [c.get("text", "") for c in contexts_b]
+
+    embeddings_a = embed_texts(texts_a)
+    embeddings_b = embed_texts(texts_b)
+
+    aligned_sections = []
+
+    for idx_a, emb_a in enumerate(embeddings_a):
+        best_idx = None
+        best_score = -1.0
+
+        for idx_b, emb_b in enumerate(embeddings_b):
+            score = _cosine_similarity(emb_a, emb_b)
+
+            if score > best_score:
+                best_score = score
+                best_idx = idx_b
+
+        if best_idx is not None:
+            aligned_sections.append({
+                "section_id": len(aligned_sections) + 1,
+                doc_a: contexts_a[idx_a],
+                doc_b: contexts_b[best_idx],
+                "similarity": round(best_score, 4),
+            })
+
+    return aligned_sections
+
+
+# ==================================================
+# EXISTING LOGIC BELOW (UNCHANGED)
+# ==================================================
 
 def _is_conceptual_query(query: str) -> bool:
     keywords = [
@@ -40,10 +116,6 @@ def _is_conceptual_query(query: str) -> bool:
 
 
 def _should_rerank(contexts: List[Dict]) -> bool:
-    """
-    Phase-2 ReAct:
-    Decide locally if reranking is worth it.
-    """
     if not contexts:
         return False
 
@@ -64,6 +136,7 @@ def retrieve_context(
     top_k: int,
     document_id: str,
 ) -> List[Dict]:
+
     store = get_store_for_document(document_id)
     query_embedding = embed_query(query)
 
@@ -74,6 +147,7 @@ def retrieve_context(
         query = f"[Conversation memory]\n{memory}\n\n[User query]\n{query}"
 
     contexts: List[Dict] = []
+
     for r in results:
         context = {
             "id": r.get("id"),
@@ -84,6 +158,7 @@ def retrieve_context(
             "document_id": document_id,
             "agent": "retrieval_agent",
         }
+
         if context["text"]:
             contexts.append(context)
 
@@ -100,14 +175,6 @@ def retrieve_for_comparison(
     document_ids: List[str],
     top_k: int,
 ) -> Dict[str, List[Dict]]:
-    """
-    Parallel comparison retrieval.
-
-    Returns:
-    {
-        document_id: [contexts...]
-    }
-    """
 
     grouped_contexts: Dict[str, List[Dict]] = {}
 
@@ -144,9 +211,6 @@ def retrieve(
     k: int = 5,
     document_id: Optional[str] = None,
 ) -> List[Dict]:
-    """
-    AGENT TOOL: retrieval_agent
-    """
 
     if document_id:
         return retrieve_context(query, k, document_id)
@@ -181,6 +245,7 @@ def retrieve(
 
         for hit in semantic_hits:
             idx = hit["id"]
+
             bm25_score = (
                 bm25_scores[idx] / max_bm25
                 if idx < len(bm25_scores)
@@ -214,6 +279,7 @@ def retrieve(
     )[:TOP_DOCS]
 
     final_chunks: List[Dict] = []
+
     for doc_id in top_doc_ids:
         final_chunks.extend(
             sorted(
@@ -228,8 +294,8 @@ def retrieve(
     for c in final_chunks:
         c.pop("_doc_id", None)
 
-    # 🔹 Phase-2 ReAct signal for executor
     suggest_rerank = _should_rerank(final_chunks)
+
     for c in final_chunks:
         c["_suggest_rerank"] = suggest_rerank
 

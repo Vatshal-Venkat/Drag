@@ -330,3 +330,65 @@ def generate_sentence_citations(
         })
 
     return citations
+
+# =================================================
+# ALIGNED COMPARISON GENERATION (HYBRID)
+# =================================================
+
+def stream_aligned_comparison_answer(
+    query: str,
+    aligned_sections: List[Dict],
+) -> Iterator[str]:
+
+    if not aligned_sections:
+        yield "No comparable sections were found across documents."
+        return
+
+    section_blocks = []
+
+    for section in aligned_sections:
+        doc_keys = [k for k in section.keys() if k not in ("section_id", "similarity")]
+
+        if len(doc_keys) < 2:
+            continue
+
+        doc_a, doc_b = doc_keys[0], doc_keys[1]
+
+        block = f"""
+Section {section['section_id']} (Similarity: {section['similarity']})
+
+Document A:
+{section[doc_a]['text']}
+
+Document B:
+{section[doc_b]['text']}
+"""
+        section_blocks.append(block.strip())
+
+    combined_context = "\n\n---\n\n".join(section_blocks)
+
+    system_prompt = BASE_SYSTEM_PROMPT + """
+
+Task:
+You are performing a structured section-aligned comparison.
+
+For each section:
+- Explain similarities
+- Explain differences
+- Highlight conflicts if any
+
+Be precise. Do not generalize beyond the given text.
+"""
+
+    user_prompt = f"""
+Aligned Sections:
+{combined_context}
+
+Comparison Question:
+{query}
+
+Answer:
+""".strip()
+
+    for token in _stream_llm(user_prompt, system_prompt=system_prompt):
+        yield token

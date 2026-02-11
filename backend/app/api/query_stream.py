@@ -5,11 +5,16 @@ from typing import Any
 
 from app.memory.summary_memory import load_summary, update_summary
 from app.schemas.rag import QueryRequest
-from app.services.retriever import retrieve_context, retrieve_for_comparison
+from app.services.retriever import (
+    retrieve_context,
+    retrieve_for_comparison,
+    align_sections_hybrid,
+)
 
 from app.services.generator import (
     stream_answer,
     stream_comparison_answer,
+    stream_aligned_comparison_answer,
     generate_sentence_citations,
 )
 
@@ -30,7 +35,7 @@ def make_json_safe(obj: Any):
 def query_rag_stream(req: QueryRequest):
 
     # --------------------------------------------------
-    # 🔹 VALIDATION (FIXED: no hard block)
+    # 🔹 VALIDATION
     # --------------------------------------------------
     if req.compare_mode:
         if not req.document_ids or len(req.document_ids) < 2:
@@ -40,21 +45,35 @@ def query_rag_stream(req: QueryRequest):
             )
 
     # --------------------------------------------------
-    # 🔹 COMPARISON MODE
+    # 🔹 COMPARISON MODE (HYBRID ALIGNMENT)
     # --------------------------------------------------
     if req.compare_mode:
+
         grouped_contexts = retrieve_for_comparison(
             query=req.query,
             top_k=req.top_k,
             document_ids=req.document_ids,
         )
 
+        aligned_sections = align_sections_hybrid(grouped_contexts)
+
         def event_generator():
-            for token in stream_comparison_answer(
-                query=req.query,
-                grouped_contexts=grouped_contexts,
-            ):
-                yield f"data: {json.dumps({'type': 'token', 'value': token})}\n\n"
+
+            # 🔹 If alignment worked → structured diff
+            if aligned_sections:
+                for token in stream_aligned_comparison_answer(
+                    query=req.query,
+                    aligned_sections=aligned_sections,
+                ):
+                    yield f"data: {json.dumps({'type': 'token', 'value': token})}\n\n"
+
+            # 🔹 Fallback to basic comparison if alignment empty
+            else:
+                for token in stream_comparison_answer(
+                    query=req.query,
+                    grouped_contexts=grouped_contexts,
+                ):
+                    yield f"data: {json.dumps({'type': 'token', 'value': token})}\n\n"
 
             yield f"data: {json.dumps({'type': 'sources', 'value': make_json_safe(grouped_contexts)})}\n\n"
             yield "data: [DONE]\n\n"
@@ -62,9 +81,10 @@ def query_rag_stream(req: QueryRequest):
         return StreamingResponse(event_generator(), media_type="text/event-stream")
 
     # --------------------------------------------------
-    # 🔹 STANDARD RAG (SOFT FALLBACK)
+    # 🔹 STANDARD RAG
     # --------------------------------------------------
     contexts = []
+
     if req.document_id:
         contexts = retrieve_context(
             query=req.query,
@@ -73,6 +93,7 @@ def query_rag_stream(req: QueryRequest):
         )
 
     def event_generator():
+
         full_answer = ""
 
         for token in stream_answer(
@@ -87,8 +108,8 @@ def query_rag_stream(req: QueryRequest):
         update_summary(previous_summary, req.query, full_answer)
 
         citations = generate_sentence_citations(full_answer, contexts)
-        yield f"data: {json.dumps({'type': 'citations', 'value': make_json_safe(citations)})}\n\n"
 
+        yield f"data: {json.dumps({'type': 'citations', 'value': make_json_safe(citations)})}\n\n"
         yield f"data: {json.dumps({'type': 'sources', 'value': make_json_safe(contexts)})}\n\n"
         yield "data: [DONE]\n\n"
 
