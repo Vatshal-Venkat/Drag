@@ -251,12 +251,5 @@ const styles = {
     opacity: 0.5,
     marginLeft: 4,
   },
-    docItem: {
-    display: "flex",
-    gap: 8,
-    fontSize: 12,
-    marginBottom: 6,
-    color: "#e5e7eb",
-  },
 
 };
