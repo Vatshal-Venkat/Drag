@@ -1,13 +1,6 @@
 import { useState, useRef, useMemo } from "react";
 import { useChatStore } from "../store/chatStore";
-
-/* =========================
-   API BASE CONFIG
-========================= */
 import { API_BASE } from "../config/api";
-
-
-
 
 export function useRagStream() {
   const [sources, setSources] = useState([]);
@@ -16,65 +9,53 @@ export function useRagStream() {
 
   const controllerRef = useRef(null);
 
-  /* -------------------------------
-     Derived idle signal
-     ------------------------------- */
-  const isIdle = useMemo(() => {
-    return Date.now() - lastActivity > 18000;
-  }, [lastActivity]);
+  const isIdle = useMemo(
+    () => Date.now() - lastActivity > 18000,
+    [lastActivity]
+  );
 
   async function ask({
     question,
     topK = 5,
     documentId = null,
-    documentIds = null,
+    documentIds = [],
     compareMode = false,
     useHumanFeedback = true,
-
     onToken,
     onCitations,
     onSources,
     onDone,
     onSkip,
   }) {
-    if (!question || !question.trim()) {
-      console.warn("ask() called with empty question");
+    if (!question?.trim()) {
       onSkip?.("empty_question");
       onDone?.();
       return;
     }
 
-    /* --------------------------------------------------
-       ROUTING DECISION
-       -------------------------------------------------- */
-    const shouldUseChatEndpoint =
-      !compareMode &&
-      !documentId &&
-      (!Array.isArray(documentIds) || documentIds.length === 0);
-
     const chatStore = useChatStore.getState();
     let sessionId = chatStore.currentSessionId;
 
-    // Ensure session exists BEFORE /chat/stream
-    if (shouldUseChatEndpoint && !sessionId) {
+    const useChat =
+      !compareMode &&
+      !documentId &&
+      (!documentIds || documentIds.length === 0);
+
+    if (useChat && !sessionId) {
       try {
         sessionId = await chatStore.startNewSession();
-      } catch (err) {
-        console.error("Failed to create session:", err);
+      } catch {
         onSkip?.("session_create_failed");
         onDone?.();
         return;
       }
     }
 
-    /* --------------------------------------------------
-       ENDPOINT SELECTION (FIXED)
-       -------------------------------------------------- */
-    const endpoint = shouldUseChatEndpoint
+    const endpoint = useChat
       ? `${API_BASE}/chat/stream`
       : `${API_BASE}/rag/query/stream`;
 
-    const payload = shouldUseChatEndpoint
+    const payload = useChat
       ? {
           session_id: sessionId,
           user_text: question,
@@ -91,33 +72,26 @@ export function useRagStream() {
     setIsStreaming(true);
     setLastActivity(Date.now());
     setSources([]);
-
     controllerRef.current = new AbortController();
 
     try {
-      const response = await fetch(endpoint, {
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Accept: "text/event-stream",
         },
-        signal: controllerRef.current.signal,
         body: JSON.stringify(payload),
+        signal: controllerRef.current.signal,
       });
 
-      if (!response.ok) {
-        const errText = await response.text();
-        console.error("STREAM HTTP ERROR:", response.status, errText);
+      if (!res.ok || !res.body) {
         onSkip?.("http_error");
         onDone?.();
         return;
       }
 
-      if (!response.body) {
-        throw new Error("No response body for stream");
-      }
-
-      const reader = response.body.getReader();
+      const reader = res.body.getReader();
       const decoder = new TextDecoder("utf-8");
 
       let assistantText = "";
@@ -132,17 +106,16 @@ export function useRagStream() {
         for (const event of events) {
           if (!event.startsWith("data:")) continue;
 
-          const payloadText = event.replace("data:", "").trim();
-
-          if (payloadText === "[DONE]") {
-            setIsStreaming(false);
+          const data = event.replace("data:", "").trim();
+          if (data === "[DONE]") {
             onDone?.();
+            setIsStreaming(false);
             return;
           }
 
           let parsed;
           try {
-            parsed = JSON.parse(payloadText);
+            parsed = JSON.parse(data);
           } catch {
             continue;
           }
@@ -165,9 +138,8 @@ export function useRagStream() {
       }
     } catch (err) {
       if (err.name !== "AbortError") {
-        console.error("Stream error:", err);
+        onSkip?.("stream_error");
       }
-      onSkip?.("stream_error");
     } finally {
       setIsStreaming(false);
     }
