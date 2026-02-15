@@ -113,4 +113,6 @@ def query_rag_stream(req: QueryRequest):
         yield f"data: {json.dumps({'type': 'sources', 'value': make_json_safe(contexts)})}\n\n"
         yield "data: [DONE]\n\n"
 
+
+
     return StreamingResponse(event_generator(), media_type="text/event-stream")

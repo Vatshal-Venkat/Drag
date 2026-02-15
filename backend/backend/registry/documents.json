@@ -28,5 +28,10 @@
     "document_id": "download.pdf",
     "pages": 2,
     "chunks": 9
+  },
+  "STM _NOTES.pdf": {
+    "document_id": "STM _NOTES.pdf",
+    "pages": 104,
+    "chunks": 452
   }
 }
