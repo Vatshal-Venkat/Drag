@@ -294,6 +294,8 @@ def execute_chat(
 
     full_answer = onboarding_message + "".join(collected_tokens)
 
+    
+
     session_manager.append_message(
         session_id=session_id,
         role="assistant",
