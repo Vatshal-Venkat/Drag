@@ -1,9 +1,9 @@
 import os
-import json
 from typing import Optional
 
-MEMORY_DIR = "backend/memory"
-MEMORY_FILE = os.path.join(MEMORY_DIR, "summary.json")
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+MEMORY_DIR = os.path.join(BASE_DIR, "memory_store")
+MEMORY_FILE = os.path.join(MEMORY_DIR, "summary.txt")
 
 os.makedirs(MEMORY_DIR, exist_ok=True)
 
@@ -25,11 +25,6 @@ def update_summary(
     user_query: str,
     assistant_answer: str,
 ) -> str:
-    """
-    VERY light-weight summarizer.
-    You can later replace this with an LLM call.
-    """
-
     lines = []
 
     if previous_summary:
@@ -38,21 +33,19 @@ def update_summary(
     lines.append(f"User intent: {user_query.strip()}")
     lines.append(f"Key answer: {assistant_answer.strip()[:400]}")
 
-    new_summary = "\n".join(lines[-6:])  # keep memory small
+    new_summary = "\n".join(lines[-6:])
     save_summary(new_summary)
     return new_summary
 
-
-# ==================================================
-# 🔹 AGENT-FACING HELPERS (ADDITIVE)
-# ==================================================
 
 def should_update_summary(
     user_query: str,
     assistant_answer: str,
 ) -> bool:
-    """
-    Memory Agent heuristic (cheap + deterministic).
-    Planner can override this later.
-    """
-    return len(assistant_answer.strip()) > 120
+    if not assistant_answer:
+        return False
+
+    if len(assistant_answer.strip()) < 150:
+        return False
+
+    return True

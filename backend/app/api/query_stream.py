@@ -3,7 +3,11 @@ from fastapi.responses import StreamingResponse
 import json
 from typing import Any
 
-from app.memory.summary_memory import load_summary, update_summary
+from app.memory.summary_memory import (
+    load_summary,
+    update_summary,
+    should_update_summary,
+)
 from app.schemas.rag import QueryRequest
 from app.services.retriever import (
     retrieve_context,
@@ -31,11 +35,32 @@ def make_json_safe(obj: Any):
     return obj
 
 
+def is_closure_message(text: str) -> bool:
+    if not text:
+        return False
+
+    cleaned = text.strip().lower()
+
+    closure_phrases = [
+        "thanks",
+        "thank you",
+        "thankyou",
+        "ok",
+        "okay",
+        "cool",
+        "great",
+        "nice",
+        "got it",
+    ]
+
+    return cleaned in closure_phrases
+
+
 @router.post("/query/stream")
 def query_rag_stream(req: QueryRequest):
 
     # --------------------------------------------------
-    # 🔹 VALIDATION
+    # VALIDATION
     # --------------------------------------------------
     if req.compare_mode:
         if not req.document_ids or len(req.document_ids) < 2:
@@ -45,7 +70,7 @@ def query_rag_stream(req: QueryRequest):
             )
 
     # --------------------------------------------------
-    # 🔹 COMPARISON MODE (HYBRID ALIGNMENT)
+    # COMPARISON MODE
     # --------------------------------------------------
     if req.compare_mode:
 
@@ -59,15 +84,12 @@ def query_rag_stream(req: QueryRequest):
 
         def event_generator():
 
-            # 🔹 If alignment worked → structured diff
             if aligned_sections:
                 for token in stream_aligned_comparison_answer(
                     query=req.query,
                     aligned_sections=aligned_sections,
                 ):
                     yield f"data: {json.dumps({'type': 'token', 'value': token})}\n\n"
-
-            # 🔹 Fallback to basic comparison if alignment empty
             else:
                 for token in stream_comparison_answer(
                     query=req.query,
@@ -81,7 +103,7 @@ def query_rag_stream(req: QueryRequest):
         return StreamingResponse(event_generator(), media_type="text/event-stream")
 
     # --------------------------------------------------
-    # 🔹 STANDARD RAG
+    # STANDARD RAG
     # --------------------------------------------------
     contexts = []
 
@@ -104,15 +126,18 @@ def query_rag_stream(req: QueryRequest):
             full_answer += token
             yield f"data: {json.dumps({'type': 'token', 'value': token})}\n\n"
 
-        previous_summary = load_summary()
-        update_summary(previous_summary, req.query, full_answer)
+        # 🔹 MEMORY UPDATE (SAFE + CONTROLLED)
+        if not is_closure_message(req.query) and should_update_summary(
+            req.query,
+            full_answer,
+        ):
+            previous_summary = load_summary()
+            update_summary(previous_summary, req.query, full_answer)
 
         citations = generate_sentence_citations(full_answer, contexts)
 
         yield f"data: {json.dumps({'type': 'citations', 'value': make_json_safe(citations)})}\n\n"
         yield f"data: {json.dumps({'type': 'sources', 'value': make_json_safe(contexts)})}\n\n"
         yield "data: [DONE]\n\n"
-
-
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
