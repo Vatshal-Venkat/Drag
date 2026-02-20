@@ -12,26 +12,20 @@ export default function ChatContainer() {
   const messages = useChatStore((s) => s.messages);
   const sidebarOpen = useChatStore((s) => s.sidebarOpen);
   const compareMode = useChatStore((s) => s.compareMode);
-  const selectedDocuments = useChatStore(
-    (s) => s.selectedDocuments
-  );
+  const selectedDocuments = useChatStore((s) => s.selectedDocuments);
   const toggleDocumentSelection = useChatStore(
     (s) => s.toggleDocumentSelection
   );
 
   const hasMessages = messages.length > 0;
-  const showPanel =
-    compareMode && selectedDocuments.length >= 2;
+  const showPanel = compareMode && selectedDocuments.length >= 2;
 
   /* ===========================
      Panel State
   ============================ */
 
-  const [collapsed, setCollapsed] =
-    useState(false);
-  const [panelWidth, setPanelWidth] =
-    useState(DEFAULT_PANEL_WIDTH);
-
+  const [collapsed, setCollapsed] = useState(false);
+  const [panelWidth, setPanelWidth] = useState(DEFAULT_PANEL_WIDTH);
   const isResizing = useRef(false);
 
   function startResize() {
@@ -44,13 +38,10 @@ export default function ChatContainer() {
 
   function resize(e) {
     if (!isResizing.current) return;
-    const newWidth =
-      window.innerWidth - e.clientX;
 
-    if (
-      newWidth >= MIN_WIDTH &&
-      newWidth <= MAX_WIDTH
-    ) {
+    const newWidth = window.innerWidth - e.clientX;
+
+    if (newWidth >= MIN_WIDTH && newWidth <= MAX_WIDTH) {
       setPanelWidth(newWidth);
     }
   }
@@ -58,15 +49,10 @@ export default function ChatContainer() {
   useEffect(() => {
     window.addEventListener("mousemove", resize);
     window.addEventListener("mouseup", stopResize);
+
     return () => {
-      window.removeEventListener(
-        "mousemove",
-        resize
-      );
-      window.removeEventListener(
-        "mouseup",
-        stopResize
-      );
+      window.removeEventListener("mousemove", resize);
+      window.removeEventListener("mouseup", stopResize);
     };
   }, []);
 
@@ -78,33 +64,20 @@ export default function ChatContainer() {
     .filter((m) => m.role === "assistant")
     .flatMap((m) => {
       const matches =
-        m.content?.match(
-          /Similarity:\s+([\d.]+)/g
-        ) || [];
+        m.content?.match(/Similarity:\s+([\d.]+)/g) || [];
 
       return matches.map((match) =>
-        parseFloat(
-          match.replace(
-            "Similarity:",
-            ""
-          )
-        )
+        parseFloat(match.replace("Similarity:", ""))
       );
     });
 
-  const high =
-    similarityScores.filter((s) => s > 0.85)
-      .length;
-  const medium =
-    similarityScores.filter(
-      (s) => s >= 0.6 && s <= 0.85
-    ).length;
-  const low =
-    similarityScores.filter((s) => s < 0.6)
-      .length;
+  const high = similarityScores.filter((s) => s > 0.85).length;
+  const medium = similarityScores.filter(
+    (s) => s >= 0.6 && s <= 0.85
+  ).length;
+  const low = similarityScores.filter((s) => s < 0.6).length;
 
-  const total =
-    similarityScores.length || 1;
+  const total = similarityScores.length || 1;
 
   /* ===========================
      Render
@@ -127,7 +100,10 @@ export default function ChatContainer() {
             <h1 style={styles.title}>
               What can I help you figure out?
             </h1>
-            <MessageInput hasMessages={false} />
+
+            <div style={styles.inputWrapper}>
+              <MessageInput hasMessages={false} />
+            </div>
           </div>
         )}
 
@@ -166,14 +142,11 @@ export default function ChatContainer() {
             {/* Collapse Toggle */}
             <div
               style={styles.collapseBtn}
-              onClick={() =>
-                setCollapsed(!collapsed)
-              }
+              onClick={() => setCollapsed(!collapsed)}
             >
               {collapsed ? "⟨" : "⟩"}
             </div>
 
-            {/* Panel Content */}
             {!collapsed && (
               <>
                 <div style={styles.header}>
@@ -211,32 +184,21 @@ export default function ChatContainer() {
                   <div style={styles.label}>
                     Switch Documents
                   </div>
-                  {selectedDocuments.map(
-                    (doc) => (
-                      <div
-                        key={doc}
-                        style={
-                          styles.docRow
+
+                  {selectedDocuments.map((doc) => (
+                    <div key={doc} style={styles.docRow}>
+                      <span>{doc}</span>
+
+                      <button
+                        style={styles.removeBtn}
+                        onClick={() =>
+                          toggleDocumentSelection(doc)
                         }
                       >
-                        <span>
-                          {doc}
-                        </span>
-                        <button
-                          style={
-                            styles.removeBtn
-                          }
-                          onClick={() =>
-                            toggleDocumentSelection(
-                              doc
-                            )
-                          }
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    )
-                  )}
+                        ✕
+                      </button>
+                    </div>
+                  ))}
                 </div>
               </>
             )}
@@ -265,6 +227,7 @@ function Bar({ label, value, total, color }) {
       >
         {label} ({value})
       </div>
+
       <div
         style={{
           height: 6,
@@ -306,6 +269,26 @@ const styles = {
   messageArea: {
     flex: 1,
     overflowY: "auto",
+  },
+
+  emptyState: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",   // ✅ FIX
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 24,
+    textAlign: "center",
+  },
+
+  inputWrapper: {
+    width: 600,
+    maxWidth: "90%",
+  },
+
+  title: {
+    fontSize: 26,
+    color: "#e7ebef",
   },
 
   panel: {
@@ -372,17 +355,5 @@ const styles = {
     border: "none",
     color: "#f87171",
     cursor: "pointer",
-  },
-
-  emptyState: {
-    flex: 1,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  title: {
-    fontSize: 26,
-    color: "#e7ebef",
   },
 };
