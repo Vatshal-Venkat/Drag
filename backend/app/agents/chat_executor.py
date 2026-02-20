@@ -1,15 +1,44 @@
-from typing import List, Dict, Generator
+from typing import List, Dict, Generator, Any
 import re
+import json
 
 from app.core.session_manager import session_manager
-
-from app.agents.planner_agent import plan_next_steps
-from app.tools.tool_registry import get_tool
-
-from app.services.generator import stream_answer, _stream_llm
+from app.tools.tool_registry import get_tool, list_tools
+from app.core.llms import planner_llm, generator_llm
 from app.utils.context_trimmer import trim_context
 from app.registry.document_registry import list_documents
-from app.agents.aggregator_agent import AggregatorAgent
+
+
+# ==================================================
+# CONFIG
+# ==================================================
+
+MAX_REACT_STEPS = 5
+
+REACT_SYSTEM_PROMPT = """
+You are an advanced reasoning AI agent.
+
+You MUST use this exact format:
+
+Thought: <your reasoning>
+Action: <tool name OR "final">
+Action Input: <valid JSON>
+
+Available tools:
+{tools}
+
+When ready to answer:
+
+Thought: I now know the final answer
+Action: final
+Action Input: {{"answer": "<final answer here>"}}
+
+Rules:
+- Do not skip format.
+- Do not invent tools.
+- Use tools when relevant.
+- Do not output anything outside this format.
+"""
 
 
 CHAT_PROMPT = (
@@ -19,9 +48,9 @@ CHAT_PROMPT = (
 )
 
 
-# --------------------------------------------------
-# INTENT GUARD (ACKNOWLEDGEMENTS)
-# --------------------------------------------------
+# ==================================================
+# ACKNOWLEDGEMENT GUARD
+# ==================================================
 
 _ACK_PATTERNS = [
     r"^thanks?$",
@@ -39,29 +68,77 @@ _ACK_PATTERNS = [
     r"^👍$",
 ]
 
+
 def _is_acknowledgement(text: str) -> bool:
     text = text.strip().lower()
     return any(re.match(p, text) for p in _ACK_PATTERNS)
 
+
+# ==================================================
+# ROUTER — SHOULD USE REACT?
+# ==================================================
+
+def _should_use_react(session_id: str, user_text: str) -> bool:
+    active_docs = session_manager.get_active_documents(session_id)
+
+    # No documents loaded → no need for ReACT
+    if not active_docs:
+        return False
+
+    # Very short / casual input → no ReACT
+    if len(user_text.strip().split()) < 4:
+        return False
+
+    # If query looks like greeting or unclear
+    if user_text.lower() in ["hello", "hi", "hey"]:
+        return False
+
+    return True
+
+
+# ==================================================
+# REACT PARSER
+# ==================================================
+
+def _parse_react_output(text: str) -> Dict[str, Any]:
+    thought_match = re.search(r"Thought:(.*)", text)
+    action_match = re.search(r"Action:(.*)", text)
+    input_match = re.search(r"Action Input:(.*)", text, re.DOTALL)
+
+    thought = thought_match.group(1).strip() if thought_match else ""
+    action = action_match.group(1).strip() if action_match else ""
+    raw_input = input_match.group(1).strip() if input_match else "{}"
+
+    try:
+        action_input = json.loads(raw_input)
+    except Exception:
+        action_input = {}
+
+    return {
+        "thought": thought,
+        "action": action,
+        "action_input": action_input,
+    }
+
+
+# ==================================================
+# MAIN EXECUTOR
+# ==================================================
 
 def execute_chat(
     *,
     session_id: str,
     user_text: str,
 ) -> Generator[str, None, None]:
-    """
-    Unified Agentic RAG execution core.
-    Yields raw tokens (no SSE / HTTP formatting).
-    """
 
     session = session_manager.get_session(session_id)
     if session is None:
         yield "[ERROR] Session not found"
         return
 
-    # --------------------------------------------------
-    # 🔹 ACKNOWLEDGEMENT SHORT-CIRCUIT
-    # --------------------------------------------------
+    # ----------------------------------------
+    # ACK SHORT-CIRCUIT
+    # ----------------------------------------
 
     if _is_acknowledgement(user_text):
         reply = "You're welcome 🙂"
@@ -79,97 +156,109 @@ def execute_chat(
         content=user_text,
     )
 
-    # 🔹 Phase-3: passive memory snapshot
     memory_snapshot = session_manager.get_recent_messages(
         session_id=session_id,
         limit=5,
     )
 
-    plan_obj = plan_next_steps(
-        session_id=session_id,
-        user_query=user_text,
-    )
+    # ==================================================
+    # CHAT MODE (No ReACT)
+    # ==================================================
 
-    actions = plan_obj.get("actions", [])
-    plan = [a["name"] for a in actions]
+    if not _should_use_react(session_id, user_text):
 
-    # --------------------------------------------------
-    # CHAT-ONLY PATH
-    # --------------------------------------------------
+        chat_messages = [{"role": "system", "content": CHAT_PROMPT}]
+        chat_messages.extend(memory_snapshot)
 
-    if plan == ["chat"]:
-        prompt = CHAT_PROMPT + "\nUser: " + user_text + "\nAssistant:"
-        for token in _stream_llm(prompt):
+        collected = ""
+
+        for token in generator_llm(chat_messages, stream=True):
+            collected += token
             yield token
+
+        follow_up = "\n\nDo you want me to explain more?"
+        yield follow_up
+        collected += follow_up
+
+        session_manager.append_message(
+            session_id=session_id,
+            role="assistant",
+            content=collected.strip(),
+        )
+
         return
 
-    # --------------------------------------------------
-    # AGENTIC EXECUTION
-    # --------------------------------------------------
+    # ==================================================
+    # REACT MODE
+    # ==================================================
+
+    tools = list_tools()
+    tools_str = "\n".join(f"- {t}" for t in tools)
+
+    system_prompt = REACT_SYSTEM_PROMPT.format(tools=tools_str)
+
+    messages = [{"role": "system", "content": system_prompt}]
+    messages.extend(memory_snapshot)
 
     active_docs = session_manager.get_active_documents(session_id)
     document_id = active_docs[0] if active_docs else None
 
-    retrieved_contexts: List[Dict] = []
-    reranked_contexts: List[Dict] = []
-    search_results: List[Dict] = []
-    tool_observations: List[Dict] = []
+    contexts: List[Dict] = []
+    final_answer = None
 
-    for step in actions:
-        name = step.get("name")
-        params = step.get("params", {})
+    for _ in range(MAX_REACT_STEPS):
 
-        if name == "generate":
+        response = planner_llm(messages, stream=False)
+
+        parsed = _parse_react_output(response)
+        action = parsed["action"]
+        action_input = parsed["action_input"]
+
+        # FINAL
+        if action == "final":
+            final_answer = action_input.get("answer", "")
             break
 
-        tool = get_tool(name)
+        tool = get_tool(action)
+
         if not tool:
-            continue
+            observation = f"Tool '{action}' not available."
+        else:
+            try:
+                result = tool(
+                    query=user_text,
+                    document_id=document_id,
+                    **action_input,
+                )
+                observation = result
 
-        try:
-            result = tool(
-                query=user_text,
-                document_id=document_id,
-                **params,
-            )
+                if action == "retrieve":
+                    contexts = result
 
-            if name == "retrieve":
-                retrieved_contexts = result
+            except Exception as e:
+                observation = f"Tool error: {str(e)}"
 
-            elif name == "rerank":
-                if retrieved_contexts and not retrieved_contexts[0].get("_suggest_rerank", True):
-                    tool_observations.append({
-                        "tool": "rerank",
-                        "result": "skipped (high-confidence retrieval)",
-                    })
-                    continue
-                reranked_contexts = result
+        session_manager.add_observation(
+            session_id=session_id,
+            step=action,
+            value="ok",
+        )
 
-            elif name == "search":
-                search_results = result
+        messages.append({"role": "assistant", "content": response})
+        messages.append({
+            "role": "user",
+            "content": f"Observation: {str(observation)}",
+        })
 
-            tool_observations.append({
-                "tool": name,
-                "result": "ok",
-            })
+    if not final_answer:
+        final_answer = "I couldn't complete reasoning within allowed steps."
 
-            # 🔹 Phase-3: persist observation
-            session_manager.add_observation(
-                session_id,
-                step=name,
-                value="ok",
-            )
+    # ==================================================
+    # CONTEXT TRIMMING
+    # ==================================================
 
-        except Exception as e:
-            tool_observations.append({
-                "tool": name,
-                "error": str(e),
-            })
-
-    base_contexts = reranked_contexts or retrieved_contexts
-
-    context_blocks, used_docs = trim_context(
-        base_contexts,
+    context_blocks, _ = trim_context(
+        contexts,
         max_chars=6000,
     )
 
@@ -184,34 +273,29 @@ def execute_chat(
             "I don’t see any documents uploaded yet.\n\n"
         )
 
+    # ==================================================
+    # FINAL STREAM
+    # ==================================================
+
+    final_messages = [
+        {"role": "system", "content": CHAT_PROMPT},
+        {"role": "user", "content": final_answer},
+    ]
+
     collected_tokens: List[str] = []
 
-    for token in stream_answer(
-        query=user_text,
-        contexts=context_blocks,
-        observations=[
-            {"step": "plan", "value": plan},
-            {"step": "memory", "value": memory_snapshot},
-            {"step": "tools", "value": tool_observations},
-        ],
-    ):
+    for token in generator_llm(final_messages, stream=True):
         collected_tokens.append(token)
         yield token
 
-    # --------------------------------------------------
-    # 🔹 FOLLOW-UP PROMPT (UX POLISH)
-    # --------------------------------------------------
-
     follow_up = "\n\nDo you want me to explain more?"
-
     yield follow_up
     collected_tokens.append(follow_up)
 
     full_answer = onboarding_message + "".join(collected_tokens)
 
-    if full_answer.strip():
-        session_manager.append_message(
-            session_id=session_id,
-            role="assistant",
-            content=full_answer.strip(),
-        )
+    session_manager.append_message(
+        session_id=session_id,
+        role="assistant",
+        content=full_answer.strip(),
+    )

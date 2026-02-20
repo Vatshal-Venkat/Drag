@@ -3,7 +3,6 @@ from typing import Dict, Callable, Any
 from app.services.retriever import retrieve
 from app.services.reranker import rerank_contexts
 from app.agents.search_agent import SearchAgent
-
 from app.mcp.mcp_client import MCPClient
 
 
@@ -34,9 +33,6 @@ def _search_tool(**kwargs):
 
 
 def register_mcp_tools():
-    """
-    Discover and register tools from MCP servers.
-    """
     client = MCPClient()
     tools = client.discover_tools()
     for name, fn in tools.items():
@@ -45,3 +41,11 @@ def register_mcp_tools():
 
 def get_tool(name: str) -> Callable[..., Any] | None:
     return _TOOL_REGISTRY.get(name)
+
+
+def list_tools() -> list[str]:
+    return list(_TOOL_REGISTRY.keys())
+
+
+# Auto-register MCP on import
+register_mcp_tools()

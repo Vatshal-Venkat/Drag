@@ -1,0 +1,18 @@
+User intent: Explain Venkat Vatshal skills
+Key answer: Based on the provided resume, Venkat Vatshal's skills can be summarized as follows:
+
+**Technical Skills:**
+
+1. [S1,S2] **Data Structures and Algorithms**
+2. [S1,S2] **Generative AI & LLM Applications**
+3. [S1,S2] **RAG Pipelines, Prompt Engineering, LLM Integration, Embedding Models, LangChain, Chunking & Retrieval Tuning, Machine Learning, Deep Learning**
+4. [S1,S2] **Frontend & Backend**: React.
+User intent: How good is his profile?
+Key answer: Based on the provided context, Venkat Vatshal K's profile appears to be strong in the following areas:
+
+1. [S1,S2] **Technical Skills**: He has a wide range of technical skills, including Generative AI, LLM Applications, RAG Pipelines, Prompt Engineering, and various programming languages.
+ [S1,S2]2. [S1,S2] **Experience**: He has experience working as an AI Intern at Celerinn Technologies, where
+User intent: What info you need to help him land a job?
+Key answer: To help Venkat Vatshal K land a job, I would need more information about the job requirements and the industry he is applying to. [S1,S2] However, based on his resume, here are some potential areas of focus:
+
+1. [S1,S2] **Specific job requirements**: What are the key skills and qualifications required for the job? [S1,S2] Are there any specific technologies or domains that the employer is looking 

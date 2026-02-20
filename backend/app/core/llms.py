@@ -74,6 +74,7 @@ def planner_llm(
         messages=messages,
         role="planner",
         stream=stream,
+        provider="groq",
     )
 
 
@@ -86,6 +87,7 @@ def generator_llm(
         messages=messages,
         role="generator",
         stream=stream,
+        provider="groq",
     )
 
 
