@@ -36,12 +36,11 @@ export function useRagStream() {
     const chatStore = useChatStore.getState();
     let sessionId = chatStore.currentSessionId;
 
-    const useChat =
-      !compareMode &&
-      !documentId &&
-      (!documentIds || documentIds.length === 0);
+    // --------------------------------------------------
+    // ALWAYS ENSURE SESSION EXISTS (UNIFIED ENGINE REQUIRES IT)
+    // --------------------------------------------------
 
-    if (useChat && !sessionId) {
+    if (!sessionId) {
       try {
         sessionId = await chatStore.startNewSession();
       } catch {
@@ -51,9 +50,18 @@ export function useRagStream() {
       }
     }
 
+    const useChat =
+      !compareMode &&
+      !documentId &&
+      (!documentIds || documentIds.length === 0);
+
     const endpoint = useChat
       ? `${API_BASE}/chat/stream`
       : `${API_BASE}/rag/query/stream`;
+
+    // --------------------------------------------------
+    // UNIFIED PAYLOAD (ALWAYS INCLUDE session_id)
+    // --------------------------------------------------
 
     const payload = useChat
       ? {
@@ -61,6 +69,7 @@ export function useRagStream() {
           user_text: question,
         }
       : {
+          session_id: sessionId,   // 🔥 REQUIRED NOW
           query: question,
           top_k: topK,
           document_id: compareMode ? null : documentId,
