@@ -38,5 +38,20 @@
     "document_id": "Venkat-Vatshal-K-Resume.pdf",
     "pages": 2,
     "chunks": 9
+  },
+  "R-1.pdf": {
+    "document_id": "R-1.pdf",
+    "pages": 3,
+    "chunks": 18
+  },
+  "Cover page.pdf": {
+    "document_id": "Cover page.pdf",
+    "pages": 1,
+    "chunks": 1
+  },
+  "ieeeECHOED.pdf": {
+    "document_id": "ieeeECHOED.pdf",
+    "pages": 7,
+    "chunks": 89
   }
 }

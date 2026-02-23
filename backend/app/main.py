@@ -13,7 +13,7 @@ from app.api import ingest, health, query_stream, documents
 # -------------------------
 # Chat routes
 # -------------------------
-from app.routes import chat, sessions, chat_stream
+from app.routes import sessions, chat_stream
 
 # -------------------------
 # Registry
@@ -36,20 +36,24 @@ if MCP_ENABLED:
     register_mcp_tools()
 
 # -------------------------
-# CORS (Production + Local)
+# CORS (Local + Production)
 # -------------------------
 
-FRONTEND_ORIGINS = os.getenv(
-    "FRONTEND_ORIGINS",
-    "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,https://drag-eosin.vercel.app"
-)
+# Explicitly allow local dev + deployed frontend
+ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "https://drag-eosin.vercel.app",
+]
 
-origins = [origin.strip() for origin in FRONTEND_ORIGINS.split(",")]
+# Optional: allow preview vercel deployments
+ALLOWED_ORIGIN_REGEX = r"https://.*\.vercel\.app"
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=ALLOWED_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -71,5 +75,4 @@ app.include_router(documents.router)
 # Chat APIs
 # -------------------------
 app.include_router(sessions.router)
-app.include_router(chat.router)
 app.include_router(chat_stream.router)

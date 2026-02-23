@@ -3,27 +3,17 @@ from fastapi.responses import StreamingResponse
 import json
 from typing import Any
 
-from app.memory.summary_memory import (
-    load_summary,
-    update_summary,
-    should_update_summary,
-)
 from app.schemas.rag import QueryRequest
-from app.services.retriever import (
-    retrieve_context,
-    retrieve_for_comparison,
-    align_sections_hybrid,
-)
-
-from app.services.generator import (
-    stream_answer,
-    stream_comparison_answer,
-    stream_aligned_comparison_answer,
-    generate_sentence_citations,
-)
+from app.core.conversation_engine import ConversationEngine
 
 router = APIRouter(prefix="/rag")
 
+engine = ConversationEngine()
+
+
+# --------------------------------------------------
+# JSON SAFE HELPER
+# --------------------------------------------------
 
 def make_json_safe(obj: Any):
     if isinstance(obj, dict):
@@ -35,109 +25,40 @@ def make_json_safe(obj: Any):
     return obj
 
 
-def is_closure_message(text: str) -> bool:
-    if not text:
-        return False
-
-    cleaned = text.strip().lower()
-
-    closure_phrases = [
-        "thanks",
-        "thank you",
-        "thankyou",
-        "ok",
-        "okay",
-        "cool",
-        "great",
-        "nice",
-        "got it",
-    ]
-
-    return cleaned in closure_phrases
-
+# --------------------------------------------------
+# UNIFIED STREAM ENDPOINT
+# --------------------------------------------------
 
 @router.post("/query/stream")
 def query_rag_stream(req: QueryRequest):
 
-    # --------------------------------------------------
-    # VALIDATION
-    # --------------------------------------------------
-    if req.compare_mode:
-        if not req.document_ids or len(req.document_ids) < 2:
-            raise HTTPException(
-                status_code=400,
-                detail="compare_mode requires at least two document_ids"
-            )
-
-    # --------------------------------------------------
-    # COMPARISON MODE
-    # --------------------------------------------------
-    if req.compare_mode:
-
-        grouped_contexts = retrieve_for_comparison(
-            query=req.query,
-            top_k=req.top_k,
-            document_ids=req.document_ids,
-        )
-
-        aligned_sections = align_sections_hybrid(grouped_contexts)
-
-        def event_generator():
-
-            if aligned_sections:
-                for token in stream_aligned_comparison_answer(
-                    query=req.query,
-                    aligned_sections=aligned_sections,
-                ):
-                    yield f"data: {json.dumps({'type': 'token', 'value': token})}\n\n"
-            else:
-                for token in stream_comparison_answer(
-                    query=req.query,
-                    grouped_contexts=grouped_contexts,
-                ):
-                    yield f"data: {json.dumps({'type': 'token', 'value': token})}\n\n"
-
-            yield f"data: {json.dumps({'type': 'sources', 'value': make_json_safe(grouped_contexts)})}\n\n"
-            yield "data: [DONE]\n\n"
-
-        return StreamingResponse(event_generator(), media_type="text/event-stream")
-
-    # --------------------------------------------------
-    # STANDARD RAG
-    # --------------------------------------------------
-    contexts = []
-
-    if req.document_id:
-        contexts = retrieve_context(
-            query=req.query,
-            top_k=req.top_k,
-            document_id=req.document_id,
+    if not req.session_id:
+        raise HTTPException(
+            status_code=400,
+            detail="session_id is required"
         )
 
     def event_generator():
 
-        full_answer = ""
-
-        for token in stream_answer(
+        for event in engine.stream(
+            session_id=req.session_id,
             query=req.query,
-            contexts=contexts,
+            compare_mode=req.compare_mode,
+            document_ids=req.document_ids,
+            top_k=req.top_k,
             use_human_feedback=req.use_human_feedback,
         ):
-            full_answer += token
-            yield f"data: {json.dumps({'type': 'token', 'value': token})}\n\n"
 
-        # 🔹 MEMORY UPDATE (SAFE + CONTROLLED)
-        if not is_closure_message(req.query) and should_update_summary(
-            req.query,
-            full_answer,
-        ):
-            previous_summary = load_summary()
-            update_summary(previous_summary, req.query, full_answer)
+            if event.get("type") == "error":
+                yield f"data: {json.dumps(event)}\n\n"
+                yield "data: [DONE]\n\n"
+                return
 
-        citations = generate_sentence_citations(full_answer, contexts)
+            yield f"data: {json.dumps(make_json_safe(event))}\n\n"
 
-        yield f"data: {json.dumps({'type': 'citations', 'value': make_json_safe(citations)})}\n\n"
-        yield f"data: {json.dumps({'type': 'sources', 'value': make_json_safe(contexts)})}\n\n"
         yield "data: [DONE]\n\n"
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream"
+    )

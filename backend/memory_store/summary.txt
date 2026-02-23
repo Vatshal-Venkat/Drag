@@ -15,4 +15,10 @@ Key answer: Based on the provided context, Venkat Vatshal K's profile appears to
 User intent: What info you need to help him land a job?
 Key answer: To help Venkat Vatshal K land a job, I would need more information about the job requirements and the industry he is applying to. [S1,S2] However, based on his resume, here are some potential areas of focus:
 
-1. [S1,S2] **Specific job requirements**: What are the key skills and qualifications required for the job? [S1,S2] Are there any specific technologies or domains that the employer is looking 
+1. [S1,S2] **Specific job requirements**: What are the key skills and qualifications required for the job? [S1,S2] Are there any specific technologies or domains that the employer is looking
+User intent: Explain R-1.pdf file
+Key answer: Based on the provided context, it appears that R-1.pdf is a document that discusses the limitations of traditional chatbot systems and search engines in retrieving accurate and relevant information from unstructured data. [S1,S2] The document also introduces the concept of Retrieval-Augmented Generation (RAG) as a solution to address these limitations.
+
+ [S1,S2]The RAG framework combines a dense d
+User intent: What does R-1 talk about?
+Key answer: Based on the provided context, it appears that R-1 (presumably referring to the ECHO – Retrieval Augmented Generation Agent) is not explicitly discussed in the given content. [S1] The content only mentions the ECHO agent and its developers, but does not provide any information about R-1. [S1]

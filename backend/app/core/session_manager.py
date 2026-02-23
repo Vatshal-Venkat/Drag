@@ -1,11 +1,10 @@
 from uuid import uuid4
 from datetime import datetime
 from typing import Dict, List, Optional, Literal, Any
+import os
 
 from app.memory.session_memory import SessionMemory
 from app.memory.summary_memory import (
-    load_summary,
-    update_summary,
     should_update_summary,
 )
 
@@ -20,6 +19,14 @@ class SessionManager:
     def __init__(self):
         self.sessions: Dict[str, Dict[str, Any]] = {}
         self.allowed_roles = {"system", "user", "assistant"}
+
+        # Session-scoped summary directory
+        self.summary_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+            "memory_store",
+            "sessions"
+        )
+        os.makedirs(self.summary_dir, exist_ok=True)
 
     # ==================================================
     # SESSION LIFECYCLE
@@ -44,9 +51,6 @@ class SessionManager:
         return self.sessions.get(session_id)
 
     def list_sessions(self) -> List[Dict]:
-        """
-        Return lightweight session metadata for UI listing.
-        """
         return [
             {
                 "id": s["id"],
@@ -84,6 +88,63 @@ class SessionManager:
         return session["memory"].get_recent_messages(limit)
 
     # ==================================================
+    # SESSION SUMMARY MEMORY (NEW)
+    # ==================================================
+
+    def _summary_path(self, session_id: str) -> str:
+        return os.path.join(self.summary_dir, f"{session_id}.txt")
+
+    def get_summary(self, session_id: str) -> str:
+        path = self._summary_path(session_id)
+        if not os.path.exists(path):
+            return ""
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read()
+
+    def _save_summary(self, session_id: str, text: str):
+        path = self._summary_path(session_id)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+
+    def update_summary(
+        self,
+        session_id: str,
+        previous_summary: str,
+        user_query: str,
+        assistant_answer: str,
+    ) -> str:
+
+        lines = []
+
+        if previous_summary:
+            lines.append(previous_summary.strip())
+
+        lines.append(f"User intent: {user_query.strip()}")
+        lines.append(f"Key answer: {assistant_answer.strip()[:400]}")
+
+        new_summary = "\n".join(lines[-8:])  # slightly increased window
+        self._save_summary(session_id, new_summary)
+        return new_summary
+
+    def maybe_update_summary(
+        self,
+        session_id: str,
+        user_query: str,
+        assistant_answer: str,
+    ):
+        if not should_update_summary(user_query, assistant_answer):
+            return
+
+        previous = self.get_summary(session_id)
+
+        self.update_summary(
+            session_id=session_id,
+            previous_summary=previous,
+            user_query=user_query,
+            assistant_answer=assistant_answer,
+        )
+
+    # ==================================================
     # DOCUMENT REFERENCES
     # ==================================================
 
@@ -99,22 +160,6 @@ class SessionManager:
         if not session:
             return []
         return session["memory"].get_active_documents()
-
-    # ==================================================
-    # MEMORY AGENT HOOK
-    # ==================================================
-
-    def maybe_update_summary(
-        self,
-        session_id: str,
-        user_query: str,
-        assistant_answer: str,
-    ):
-        if not should_update_summary(user_query, assistant_answer):
-            return
-
-        prev = load_summary()
-        update_summary(prev, user_query, assistant_answer)
 
     # ==================================================
     # OBSERVATIONS
@@ -141,7 +186,14 @@ class SessionManager:
         session = self.get_session(session_id)
         if not session:
             return
+
         session["memory"].clear()
+
+        # Clear session summary file
+        path = self._summary_path(session_id)
+        if os.path.exists(path):
+            os.remove(path)
+
         session["updated_at"] = datetime.utcnow()
 
 

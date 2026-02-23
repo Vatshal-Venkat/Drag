@@ -4,7 +4,7 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import math
 
-from app.memory.summary_memory import load_summary
+
 from app.services.embeddings import embed_query, embed_texts
 from app.vectorstore.store_manager import (
     get_store_for_document,
@@ -142,7 +142,7 @@ def retrieve_context(
 
     results = store.search(query_embedding, k=top_k)
 
-    memory = load_summary()
+    
     if memory:
         query = f"[Conversation memory]\n{memory}\n\n[User query]\n{query}"
 

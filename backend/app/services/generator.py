@@ -29,10 +29,6 @@ AGENT_DESCRIPTION = (
 # =================================================
 
 def _build_context(contexts: List[Dict]) -> str:
-    """
-    Convert retrieved contexts into a structured,
-    LLM-safe block for generation.
-    """
     blocks = []
 
     for i, c in enumerate(contexts, start=1):
@@ -50,36 +46,48 @@ Content:
     return "\n\n---\n\n".join(blocks)
 
 
-def _build_comparison_context(
-    grouped_contexts: Dict[str, List[Dict]]
-) -> str:
-    """
-    Build structured context grouped per document.
-    Used by comparison / multi-doc agent plans.
-    """
+def _build_conversation(conversation_messages: Optional[List[Dict]]) -> str:
+    if not conversation_messages:
+        return ""
 
-    sections = []
+    formatted = []
+    for msg in conversation_messages:
+        role = msg.get("role", "unknown").capitalize()
+        content = msg.get("content", "").strip()
+        if content:
+            formatted.append(f"{role}: {content}")
 
-    for doc_id, contexts in grouped_contexts.items():
-        header = f"\n=== Document: {doc_id} ===\n"
-        body = _build_context(contexts) if contexts else "No relevant content found."
-        sections.append(header + body)
+    if not formatted:
+        return ""
 
-    return "\n\n".join(sections)
+    return "\n".join(formatted)
+
+
+def _build_observations(observations: Optional[List[Dict]]) -> str:
+    if not observations:
+        return ""
+
+    obs_lines = [
+        f"- {json.dumps(obs, ensure_ascii=False)}"
+        for obs in observations
+    ]
+
+    return "Observations:\n" + "\n".join(obs_lines)
 
 
 # =================================================
 # AGENTIC SYSTEM PROMPT
 # =================================================
 
-BASE_SYSTEM_PROMPT = """You are an Agentic RAG Generator Agent.
+BASE_SYSTEM_PROMPT = """You are an advanced conversational RAG generator.
 
 Rules:
-1. Use ONLY the provided context and observations
-2. NEVER hallucinate or assume missing facts
-3. If the context is insufficient, say so explicitly
-4. Do NOT mention agents, tools, or internal systems
-5. Respond clearly, concisely, and factually
+1. Use ONLY the provided document context for factual claims.
+2. Conversation memory is for continuity — NOT for factual invention.
+3. NEVER hallucinate missing document facts.
+4. If context is insufficient, say so clearly.
+5. Do NOT mention internal systems or architecture.
+6. Respond clearly, concisely, and naturally.
 """
 
 
@@ -92,10 +100,6 @@ def _stream_llm(
     *,
     system_prompt: Optional[str] = None,
 ) -> Iterator[str]:
-    """
-    Internal streaming LLM call.
-    This is the ONLY place where the LLM is touched.
-    """
 
     messages = [
         {
@@ -117,56 +121,47 @@ def _stream_llm(
 
 
 # =================================================
-# AGENTIC STREAMING ANSWER (MAIN PATH)
+# STREAMING ANSWER (UNIFIED CONVERSATIONAL PATH)
 # =================================================
 
 def stream_answer(
     query: str,
     contexts: List[Dict],
     *,
-    use_human_feedback: bool = True,
+    summary: Optional[str] = None,
+    conversation_messages: Optional[List[Dict]] = None,
     observations: Optional[List[Dict]] = None,
+    use_human_feedback: bool = True,
 ) -> Iterator[str]:
-    """
-    AGENT TOOL: generator_agent
 
-    This function assumes:
-    - Retrieval, reranking, planning already happened
-    - Contexts are FINAL inputs
-    """
-
-    if not contexts:
-        yield "Based on the provided documents, no relevant information was found."
-        return
-
-    # Optional HITL injection (safe, additive)
-    if use_human_feedback and inject_human_feedback:
+    # Optional HITL injection
+    if contexts and use_human_feedback and inject_human_feedback:
         contexts = inject_human_feedback(query, contexts)
 
-    # -------------------------------------------------
-    # Context + Observations
-    # -------------------------------------------------
+    context_block = _build_context(contexts) if contexts else ""
 
-    context_block = _build_context(contexts)
+    conversation_block = _build_conversation(conversation_messages)
+    observation_block = _build_observations(observations)
 
-    observation_block = ""
-    if observations:
-        observation_block = "\n\n".join(
-            f"- {json.dumps(obs, ensure_ascii=False)}"
-            for obs in observations
-        )
-        observation_block = f"\n\nObservations:\n{observation_block}"
+    summary_block = ""
+    if summary:
+        summary_block = f"Conversation Summary:\n{summary.strip()}\n\n"
 
     # -------------------------------------------------
-    # Prompt
+    # Prompt Construction
     # -------------------------------------------------
 
     user_prompt = f"""
-Context:
+{summary_block}
+Recent Conversation:
+{conversation_block}
+
+Document Context:
 {context_block}
+
 {observation_block}
 
-Question:
+User Question:
 {query}
 
 Answer:
@@ -177,17 +172,13 @@ Answer:
 
     citation_map = {
         idx + 1: ctx for idx, ctx in enumerate(contexts)
-    }
-
-    # -------------------------------------------------
-    # Stream tokens with inline citations
-    # -------------------------------------------------
+    } if contexts else {}
 
     for token in _stream_llm(user_prompt):
         buffer += token
         yield token
 
-        if sentence_end.search(buffer):
+        if contexts and sentence_end.search(buffer):
             top_sources = sorted(
                 citation_map.items(),
                 key=lambda x: float(x[1].get("confidence", 0)),
@@ -203,33 +194,60 @@ Answer:
 
 
 # =================================================
-# COMPARISON GENERATION (AGENTIC)
+# COMPARISON GENERATION
 # =================================================
 
-def stream_comparison_answer(
+def stream_aligned_comparison_answer(
     query: str,
-    grouped_contexts: Dict[str, List[Dict]],
+    aligned_sections: List[Dict],
 ) -> Iterator[str]:
-    """
-    AGENT TOOL: generator_agent (comparison mode)
-    """
 
-    context_block = _build_comparison_context(grouped_contexts)
+    if not aligned_sections:
+        yield "No comparable sections were found across documents."
+        return
+
+    section_blocks = []
+
+    for section in aligned_sections:
+        doc_keys = [
+            k for k in section.keys()
+            if k not in ("section_id", "similarity")
+        ]
+
+        if len(doc_keys) < 2:
+            continue
+
+        doc_a, doc_b = doc_keys[0], doc_keys[1]
+
+        block = f"""
+Section {section['section_id']} (Similarity: {section['similarity']})
+
+Document A:
+{section[doc_a]['text']}
+
+Document B:
+{section[doc_b]['text']}
+"""
+        section_blocks.append(block.strip())
+
+    combined_context = "\n\n---\n\n".join(section_blocks)
 
     system_prompt = BASE_SYSTEM_PROMPT + """
 
 Task:
-Compare multiple documents using ONLY the provided context.
+Perform a structured section-aligned comparison.
 
-Output Structure:
-- Similarities
-- Differences
-- Conflicts (if any)
+For each section:
+- Explain similarities
+- Explain differences
+- Highlight conflicts if any
+
+Be precise. Do not generalize beyond given text.
 """
 
     user_prompt = f"""
-Documents Context:
-{context_block}
+Aligned Sections:
+{combined_context}
 
 Comparison Question:
 {query}
@@ -242,7 +260,7 @@ Answer:
 
 
 # =================================================
-# NON-STREAMING GENERATION (AGENTIC)
+# NON-STREAMING GENERATION
 # =================================================
 
 def generate_answer(
@@ -250,9 +268,6 @@ def generate_answer(
     *,
     system_prompt: Optional[str] = None,
 ) -> str:
-    """
-    Non-streaming generation for summaries or background tasks.
-    """
 
     messages = [
         {
@@ -274,16 +289,16 @@ def generate_answer(
 
 
 # =================================================
-# SENTENCE-LEVEL CITATIONS (POST-PROCESSING)
+# SENTENCE-LEVEL CITATIONS
 # =================================================
 
 def generate_sentence_citations(
     full_answer: str,
     contexts: List[Dict]
 ) -> List[Dict]:
-    """
-    Optional post-processing step for UI citation rendering.
-    """
+
+    if not contexts:
+        return []
 
     sentences = [
         s.strip()
@@ -330,65 +345,3 @@ def generate_sentence_citations(
         })
 
     return citations
-
-# =================================================
-# ALIGNED COMPARISON GENERATION (HYBRID)
-# =================================================
-
-def stream_aligned_comparison_answer(
-    query: str,
-    aligned_sections: List[Dict],
-) -> Iterator[str]:
-
-    if not aligned_sections:
-        yield "No comparable sections were found across documents."
-        return
-
-    section_blocks = []
-
-    for section in aligned_sections:
-        doc_keys = [k for k in section.keys() if k not in ("section_id", "similarity")]
-
-        if len(doc_keys) < 2:
-            continue
-
-        doc_a, doc_b = doc_keys[0], doc_keys[1]
-
-        block = f"""
-Section {section['section_id']} (Similarity: {section['similarity']})
-
-Document A:
-{section[doc_a]['text']}
-
-Document B:
-{section[doc_b]['text']}
-"""
-        section_blocks.append(block.strip())
-
-    combined_context = "\n\n---\n\n".join(section_blocks)
-
-    system_prompt = BASE_SYSTEM_PROMPT + """
-
-Task:
-You are performing a structured section-aligned comparison.
-
-For each section:
-- Explain similarities
-- Explain differences
-- Highlight conflicts if any
-
-Be precise. Do not generalize beyond the given text.
-"""
-
-    user_prompt = f"""
-Aligned Sections:
-{combined_context}
-
-Comparison Question:
-{query}
-
-Answer:
-""".strip()
-
-    for token in _stream_llm(user_prompt, system_prompt=system_prompt):
-        yield token
