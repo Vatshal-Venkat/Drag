@@ -1,6 +1,6 @@
 from typing import List, Dict, Generator, Optional
 import re
-
+from app.core.llms import summarizer_llm
 from app.core.session_manager import session_manager
 from app.utils.context_trimmer import trim_messages, trim_context
 from app.services.retriever import (
@@ -34,6 +34,38 @@ _REASONING_PATTERNS = [
     r"\bbased on\b",
 ]
 
+def rewrite_query(query: str, summary: str, messages: List[Dict]) -> str:
+    """
+    Rewrites user query using session memory for better retrieval.
+    """
+
+    conversation_context = "\n".join(
+        f"{m['role']}: {m['content']}" for m in messages[-6:]
+    )
+
+    system_prompt = """Rewrite the user's query to be clearer and more retrieval-optimized.
+                        Keep original meaning. Expand implicit references.
+                        Return ONLY the rewritten query."""
+    
+    user_prompt = f"""
+                    Conversation Summary:
+                       {summary}
+
+                    Recent Conversation:
+                    {conversation_context}
+                        
+                    Original Query:
+                    {query}
+
+                    Rewritten Query
+                    """.strip()
+
+    rewritten = summarizer_llm([
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ])
+
+    return rewritten.strip() if rewritten else query
 
 def should_use_react(query: str, active_docs: List[str]) -> bool:
     if not active_docs:
@@ -151,11 +183,13 @@ class ConversationEngine:
         # STANDARD RETRIEVAL
         # --------------------------------------------------
 
+        rewritten_query = rewrite_query(query, summary or "", trimmed_messages)
+
         contexts = []
 
         if active_docs:
             contexts = retrieve_context(
-                query=query,
+                query=rewritten_query,
                 top_k=top_k,
                 document_id=active_docs[0],
             )

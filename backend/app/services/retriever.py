@@ -1,9 +1,9 @@
 # backend/app/services/retriever.py
+
 from typing import List, Dict, Optional
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import math
-
 
 from app.services.embeddings import embed_query, embed_texts
 from app.vectorstore.store_manager import (
@@ -11,7 +11,6 @@ from app.vectorstore.store_manager import (
     list_all_document_stores,
     get_bm25_for_store,
 )
-
 TOP_DOCS = 3
 MAX_CHUNKS_PER_DOC = 2
 
@@ -32,10 +31,8 @@ def _cosine_similarity(a: List[float], b: List[float]) -> float:
     dot = sum(x * y for x, y in zip(a, b))
     norm_a = math.sqrt(sum(x * x for x in a))
     norm_b = math.sqrt(sum(x * x for x in b))
-
     if norm_a == 0.0 or norm_b == 0.0:
         return 0.0
-
     return dot / (norm_a * norm_b)
 
 
@@ -115,15 +112,14 @@ def _is_conceptual_query(query: str) -> bool:
     return any(k in q for k in keywords)
 
 
+
 def _should_rerank(contexts: List[Dict]) -> bool:
     if not contexts:
         return False
-
     avg_conf = sum(
         float(c.get("final_score", c.get("confidence", 0.0)))
         for c in contexts
     ) / len(contexts)
-
     return avg_conf < RERANK_CONFIDENCE_THRESHOLD
 
 
@@ -141,10 +137,6 @@ def retrieve_context(
     query_embedding = embed_query(query)
 
     results = store.search(query_embedding, k=top_k)
-
-    
-    if memory:
-        query = f"[Conversation memory]\n{memory}\n\n[User query]\n{query}"
 
     contexts: List[Dict] = []
 
