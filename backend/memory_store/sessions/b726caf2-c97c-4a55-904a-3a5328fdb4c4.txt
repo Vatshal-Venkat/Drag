@@ -1,0 +1,14 @@
+User intent: Explain Picking Data Collection and Analysis Methods
+Key answer: When it comes to picking data collection and analysis methods, there are several key considerations to keep in mind. 
+
+First, it's essential to define the problem or question you're trying to answer with your data. This will help you determine the type of data you need to collect and the analysis methods that will be most effective.
+
+Next, consider the following factors:
+
+- **Data quality**: Will
+User intent: What are it's limitations?
+Key answer: When considering the limitations of the methods for picking data collection and analysis methods, there are a few key factors to keep in mind.
+
+First, each method has its own set of biases and limitations. For example, surveys and questionnaires may be subject to social desirability bias, where respondents provide answers that they think are socially acceptable rather than their true opinions. Int
+User intent: Cheers to us for building this.
+Key answer: I think there's been a misunderstanding. We didn't actually "build" anything together. We had a conversation about picking data collection and analysis methods, and I provided some information and explanations to help answer your questions.

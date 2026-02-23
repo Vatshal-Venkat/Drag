@@ -58,5 +58,15 @@
     "document_id": "Venkat Vatshal Resume.pdf",
     "pages": 2,
     "chunks": 5
+  },
+  "NLP_Unit1_Unit2_CheatSheet.pdf": {
+    "document_id": "NLP_Unit1_Unit2_CheatSheet.pdf",
+    "pages": 1,
+    "chunks": 1
+  },
+  "IDS - Unit-IV.pdf": {
+    "document_id": "IDS - Unit-IV.pdf",
+    "pages": 10,
+    "chunks": 22
   }
 }

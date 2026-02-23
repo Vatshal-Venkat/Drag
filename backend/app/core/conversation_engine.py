@@ -184,6 +184,8 @@ class ConversationEngine:
         # --------------------------------------------------
 
         rewritten_query = rewrite_query(query, summary or "", trimmed_messages)
+        print("ORIGINAL QUERY:", query)
+        print("REWRITTEN QUERY:", rewritten_query)
 
         contexts = []
 
