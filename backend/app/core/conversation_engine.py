@@ -1,5 +1,6 @@
 from typing import List, Dict, Generator, Optional
 import re
+import math
 
 from app.core.llms import summarizer_llm
 from app.core.session_manager import session_manager
@@ -19,41 +20,36 @@ from app.services.generator import (
 
 from app.agents.planner_agent import plan_next_steps
 from app.tools.tool_registry import get_tool
+from app.services.embeddings import embed_query, embed_texts
 
-from app.registry.document_registry import list_documents
+# ==========================================================
+# CONFIGURATION
+# ==========================================================
+
+MAX_AGENT_STEPS = 4
+
+BASE_CONFIDENCE_THRESHOLD = 0.30
+BASE_FINAL_SCORE_THRESHOLD = 0.35
+DYNAMIC_THRESHOLD_BOOST = 0.05
 
 
 # ==========================================================
-# SMART REACT DETECTION
+# QUERY REWRITE (SAFE)
 # ==========================================================
-
-_REASONING_PATTERNS = [
-    r"\bwhy\b",
-    r"\bhow\b",
-    r"\banalyze\b",
-    r"\bevaluate\b",
-    r"\bexplain in detail\b",
-    r"\bstep[- ]?by[- ]?step\b",
-    r"\bderive\b",
-    r"\binfer\b",
-    r"\bimplication",
-    r"\bimpact\b",
-    r"\bbased on\b",
-]
-
 
 def rewrite_query(query: str, summary: str, messages: List[Dict]) -> str:
-    """
-    Rewrites user query using session memory for better retrieval.
-    """
-
     conversation_context = "\n".join(
         f"{m['role']}: {m['content']}" for m in messages[-6:]
     )
 
-    system_prompt = """Rewrite the user's query to be clearer and more retrieval-optimized.
-Keep original meaning. Expand implicit references.
-Return ONLY the rewritten query."""
+    system_prompt = """You optimize search queries for semantic retrieval.
+
+Rules:
+1. Keep concise.
+2. Preserve keywords.
+3. Do NOT introduce new domains.
+4. If clear, return unchanged.
+Return ONLY the optimized query."""
 
     user_prompt = f"""
 Conversation Summary:
@@ -65,7 +61,7 @@ Recent Conversation:
 Original Query:
 {query}
 
-Rewritten Query
+Rewritten Query:
 """.strip()
 
     rewritten = summarizer_llm([
@@ -76,28 +72,71 @@ Rewritten Query
     return rewritten.strip() if rewritten else query
 
 
-def should_use_react(query: str, active_docs: List[str]) -> bool:
-    if not active_docs:
-        return False
+# ==========================================================
+# DYNAMIC THRESHOLDS
+# ==========================================================
 
-    if len(query.split()) < 8:
-        return False
+def dynamic_thresholds(chunk_count: int):
+    conf = BASE_CONFIDENCE_THRESHOLD
+    score = BASE_FINAL_SCORE_THRESHOLD
 
-    query_lower = query.lower()
+    if chunk_count > 6:
+        conf += DYNAMIC_THRESHOLD_BOOST
+        score += DYNAMIC_THRESHOLD_BOOST
 
-    for pattern in _REASONING_PATTERNS:
-        if re.search(pattern, query_lower):
-            return True
-
-    return False
+    return conf, score
 
 
 # ==========================================================
-# CONVERSATION ENGINE (ITERATIVE A2A ENABLED)
+# SEMANTIC RE-RANK
 # ==========================================================
 
-MAX_AGENT_STEPS = 6
+def semantic_rerank(query: str, chunks: List[Dict]) -> List[Dict]:
+    if not chunks:
+        return []
 
+    query_embedding = embed_query(query)
+    texts = [c.get("text", "") for c in chunks]
+    chunk_embeddings = embed_texts(texts)
+
+    def cosine(a, b):
+        dot = sum(x*y for x, y in zip(a, b))
+        na = math.sqrt(sum(x*x for x in a))
+        nb = math.sqrt(sum(x*x for x in b))
+        if na == 0 or nb == 0:
+            return 0.0
+        return dot / (na * nb)
+
+    for chunk, emb in zip(chunks, chunk_embeddings):
+        chunk["_semantic_score"] = round(cosine(query_embedding, emb), 4)
+
+    chunks.sort(key=lambda c: c["_semantic_score"], reverse=True)
+    return chunks
+
+
+# ==========================================================
+# FILTER CHUNKS
+# ==========================================================
+
+def filter_chunks(chunks: List[Dict]) -> List[Dict]:
+    if not chunks:
+        return []
+
+    conf_th, score_th = dynamic_thresholds(len(chunks))
+
+    filtered = []
+    for c in chunks:
+        conf = float(c.get("confidence", 0))
+        score = float(c.get("final_score", conf))
+        if conf >= conf_th and score >= score_th:
+            filtered.append(c)
+
+    return filtered
+
+
+# ==========================================================
+# CONVERSATION ENGINE
+# ==========================================================
 
 class ConversationEngine:
 
@@ -112,10 +151,6 @@ class ConversationEngine:
         use_human_feedback: bool = True,
     ) -> Generator[Dict, None, None]:
 
-        # --------------------------------------------------
-        # LOAD SESSION
-        # --------------------------------------------------
-
         session = session_manager.get_session(session_id)
         if not session:
             yield {"type": "error", "value": "Session not found"}
@@ -127,25 +162,20 @@ class ConversationEngine:
             content=query,
         )
 
-        # --------------------------------------------------
-        # LOAD MEMORY
-        # --------------------------------------------------
-
         summary = session_manager.get_summary(session_id)
-
         recent_messages = session_manager.get_recent_messages(
             session_id=session_id,
             limit=20,
         )
 
-        trimmed_messages = trim_messages(
-            recent_messages,
-            max_chars=6000,
-        )
+        trimmed_messages = trim_messages(recent_messages, max_chars=6000)
 
         rewritten_query = rewrite_query(query, summary or "", trimmed_messages)
-        print("ORIGINAL:", query)
-        print("REWRITTEN:", rewritten_query)
+
+        print("===================================")
+        print("ORIGINAL QUERY:", query)
+        print("REWRITTEN QUERY:", rewritten_query)
+        print("===================================")
 
         active_docs = (
             document_ids
@@ -153,32 +183,26 @@ class ConversationEngine:
             else session_manager.get_active_documents(session_id)
         )
 
-        # --------------------------------------------------
-        # COMPARISON MODE (BYPASS A2A)
-        # --------------------------------------------------
+        print("ACTIVE DOCS:", active_docs)
 
-        if compare_mode and active_docs and len(active_docs) >= 2:
+        # ======================================================
+        # IF NO DOCUMENTS → PURE CONVERSATIONAL MODE
+        # ======================================================
 
-            grouped_contexts = retrieve_for_comparison(
-                rewritten_query = rewrite_query(query, summary or "", trimmed_messages),
-                top_k=top_k,
-                document_ids=active_docs,
-            )
-            print("ORIGINAL QUERY:", query)
-            print("REWRITTEN QUERY:", rewritten_query)
-
-            aligned_sections = align_sections_hybrid(grouped_contexts)
-
+        if not active_docs:
+            print("MODE: Conversational (No active docs)")
             full_answer = ""
 
-            for token in stream_aligned_comparison_answer(
-                rewritten_query = rewrite_query(query, summary or "", trimmed_messages),
-                aligned_sections=aligned_sections,
+            for token in stream_answer(
+                query=query,
+                contexts=[],
+                summary=summary,
+                conversation_messages=trimmed_messages,
+                observations=None,
+                use_human_feedback=use_human_feedback,
             ):
                 full_answer += token
                 yield {"type": "token", "value": token}
-
-            yield {"type": "sources", "value": grouped_contexts}
 
             session_manager.append_message(
                 session_id=session_id,
@@ -186,24 +210,63 @@ class ConversationEngine:
                 content=full_answer,
             )
 
-            session_manager.maybe_update_summary(
+            yield {"type": "done"}
+            return
+
+        # ======================================================
+        # COMPARE MODE
+        # ======================================================
+
+        if compare_mode and len(active_docs) >= 2:
+            print("MODE: Compare")
+
+            grouped = retrieve_for_comparison(
+                query=rewritten_query,
+                document_ids=active_docs,
+                top_k=top_k,
+            )
+
+            for doc_id in grouped:
+                filtered = filter_chunks(grouped[doc_id])
+                grouped[doc_id] = semantic_rerank(rewritten_query, filtered)
+
+            if not any(grouped.values()):
+                yield {
+                    "type": "token",
+                    "value": "No relevant context found in uploaded documents."
+                }
+                yield {"type": "done"}
+                return
+
+            aligned = align_sections_hybrid(grouped)
+
+            full_answer = ""
+            for token in stream_aligned_comparison_answer(
+                query=query,
+                aligned_sections=aligned,
+            ):
+                full_answer += token
+                yield {"type": "token", "value": token}
+
+            yield {"type": "sources", "value": grouped}
+
+            session_manager.append_message(
                 session_id=session_id,
-                user_query=query,
-                assistant_answer=full_answer,
+                role="assistant",
+                content=full_answer,
             )
 
             yield {"type": "done"}
             return
 
-        # --------------------------------------------------
-        # ITERATIVE A2A ORCHESTRATION LOOP
-        # --------------------------------------------------
+        # ======================================================
+        # STRICT A2A RAG LOOP
+        # ======================================================
 
         observations: List[Dict] = []
         step_count = 0
 
         while step_count < MAX_AGENT_STEPS:
-
             step_count += 1
 
             plan = plan_next_steps(
@@ -213,109 +276,100 @@ class ConversationEngine:
 
             print("AGENT PLAN:", plan)
 
-            actions = plan.get("actions", [])
+            # If planner explicitly says chat → allow conversational fallback
+            if plan.get("actions") and plan["actions"][0]["name"] == "chat":
+                print("MODE: Planner Chat Fallback")
+                full_answer = ""
+                for token in stream_answer(
+                    query=query,
+                    contexts=[],
+                    summary=summary,
+                    conversation_messages=trimmed_messages,
+                    observations=None,
+                    use_human_feedback=use_human_feedback,
+                ):
+                    full_answer += token
+                    yield {"type": "token", "value": token}
 
-            if not actions or not any(a.get("name") == "generate" for a in actions):
-                actions.append({"name": "generate", "params": {}})
+                session_manager.append_message(
+                    session_id=session_id,
+                    role="assistant",
+                    content=full_answer,
+                )
 
-            for action in actions:
+                yield {"type": "done"}
+                return
 
-                action_name = action.get("name")
-                params = action.get("params", {})
+            # Force retrieve in strict RAG
+            print("EXECUTING TOOL: retrieve")
 
-                # --------------------------------------------------
-                # GENERATION STEP (FINAL)
-                # --------------------------------------------------
+            tool = get_tool("retrieve")
+            if not tool:
+                break
 
-                if action_name == "generate":
+            result = tool(
+                query=rewritten_query,
+                document_id=active_docs[0],
+                k=top_k,
+            )
 
-                    trimmed_contexts, _ = trim_context(
-                        observations,
-                        max_chars=6000,          
-                    )
-                    print("EXECUTING TOOL:", action_name)
+            
+            if result:
+                for r in result:
+                    print("CONF:", r.get("confidence"), "| FINAL:", r.get("final_score"))
+                    print("TEXT:", r.get("text", "")[:200])
+                    print("-" * 60)
+            else:
+                print("No chunks retrieved")
+            filtered = filter_chunks(result or [])
+            reranked = semantic_rerank(rewritten_query, filtered)
 
-                    full_answer = ""
+            if not reranked:
+                yield {
+                    "type": "token",
+                    "value": "No relevant context found in uploaded documents."
+                }
+                yield {"type": "done"}
+                return
 
-                    for token in stream_answer(
-                        query=query,
-                        contexts=trimmed_contexts,
-                        summary=summary,
-                        conversation_messages=trimmed_messages,
-                        observations=session_manager.get_observations(session_id),
-                        use_human_feedback=use_human_feedback,
-                    ):
-                        full_answer += token
-                        yield {"type": "token", "value": token}
+            observations.extend(reranked)
+            break
 
-                    citations = generate_sentence_citations(
-                        full_answer,
-                        trimmed_contexts,
-                    )
+        # ======================================================
+        # GENERATE FROM STRICT CONTEXT
+        # ======================================================
 
-                    yield {"type": "citations", "value": citations}
-                    yield {"type": "sources", "value": trimmed_contexts}
+        trimmed_contexts, _ = trim_context(
+            observations,
+            max_chars=6000,
+        )
 
-                    session_manager.append_message(
-                        session_id=session_id,
-                        role="assistant",
-                        content=full_answer,
-                    )
+        print("MODE: Strict RAG Generation")
 
-                    session_manager.maybe_update_summary(
-                        session_id=session_id,
-                        user_query=query,
-                        assistant_answer=full_answer,
-                    )
+        full_answer = ""
+        for token in stream_answer(
+            query=query,
+            contexts=trimmed_contexts,
+            summary=summary,
+            conversation_messages=trimmed_messages,
+            observations=None,
+            use_human_feedback=use_human_feedback,
+        ):
+            full_answer += token
+            yield {"type": "token", "value": token}
 
-                    yield {"type": "done"}
-                    return
+        citations = generate_sentence_citations(
+            full_answer,
+            trimmed_contexts,
+        )
 
-                if action_name not in ["retrieve", "rerank", "search", "generate"]:
-                    continue
-                
-                # --------------------------------------------------
-                # TOOL EXECUTION
-                # --------------------------------------------------
+        yield {"type": "citations", "value": citations}
+        yield {"type": "sources", "value": trimmed_contexts}
 
-                tool = get_tool(action_name)
+        session_manager.append_message(
+            session_id=session_id,
+            role="assistant",
+            content=full_answer,
+        )
 
-                if not tool:
-                    continue
-
-                try:
-                    result = tool(
-                        query=rewritten_query,
-                        document_id=(
-                            active_docs[0] if active_docs else None
-                        ),
-                        k=top_k,
-                        **params,
-                    )
-
-                    if result:
-
-                        if isinstance(result, list):
-                            observations.extend(result)
-                        else:
-                            observations.append(result)
-
-                        session_manager.add_observation(
-                            session_id=session_id,
-                            observation={
-                                "tool": action_name,
-                                "preview": str(result)[:500],
-                            },
-                        )
-
-                except Exception as e:
-                    observations.append({
-                        "tool": action_name,
-                        "error": str(e),
-                    })
-
-        # --------------------------------------------------
-        # SAFETY EXIT
-        # --------------------------------------------------
-
-        yield {"type": "error", "value": "Agent exceeded maximum steps"}
+        yield {"type": "done"}

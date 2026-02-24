@@ -1,0 +1,6 @@
+User intent: What are the different evaluation techniques
+Key answer: Based on our previous conversation, I recall that you asked about the different evaluation techniques. [S1] However, since our conversation just started, I don't have any prior information to draw from. [S1] 
+
+To answer your question, there are several evaluation techniques used in various fields, including:
+
+1. [S1] **Quantitative evaluation**: This involves using numerical data to assess the per
