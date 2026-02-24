@@ -10,26 +10,24 @@ export default function MessageInput({ hasMessages }) {
   const [text, setText] = useState("");
   const [fileState, setFileState] = useState(null);
 
-  // ❌ REMOVED LOCAL compareMode STATE (WAS BREAKING SYNC)
   const compareMode = useChatStore((s) => s.compareMode);
   const selectedDocuments = useChatStore((s) => s.selectedDocuments);
 
-  const useHumanFeedback = true;
-
-  const textareaRef = useRef(null);
-  const fileRef = useRef(null);
+  const ensureSession = useChatStore((s) => s.ensureSession);
+  const registerDocument = useChatStore((s) => s.registerDocument);
+  const setLastActiveDocument = useChatStore((s) => s.setLastActiveDocument);
 
   const sendUserMessage = useChatStore((s) => s.sendUserMessage);
   const updateLastAssistant = useChatStore((s) => s.updateLastAssistant);
   const stopLoading = useChatStore((s) => s.stopLoading);
+  const loading = useChatStore((s) => s.loading);
 
   const lastActiveDocument = useChatStore((s) => s.lastActiveDocument);
-  const setLastActiveDocument = useChatStore((s) => s.setLastActiveDocument);
 
-  const registerDocument = useChatStore((s) => s.registerDocument);
-
-  const loading = useChatStore((s) => s.loading);
   const rag = useRagStream();
+
+  const textareaRef = useRef(null);
+  const fileRef = useRef(null);
 
   const {
     supported: voiceSupported,
@@ -57,30 +55,27 @@ export default function MessageInput({ hasMessages }) {
     const question = text.trim();
     setText("");
 
+    // 🔥 Ensure session always exists
+    const sessionId = await ensureSession();
+
     await sendUserMessage({
       question,
       compareMode,
       documentIds: compareMode ? selectedDocuments : null,
-      useHumanFeedback,
     });
 
     await rag.ask({
+      sessionId,
       question,
       compareMode,
       documentIds: compareMode ? selectedDocuments : null,
       documentId: !compareMode ? lastActiveDocument : null,
-      useHumanFeedback,
 
       onToken: (content) =>
         updateLastAssistant((m) => {
           if (m) m.content = content;
         }),
 
-      /**
-       * 🔧 FIXED:
-       * onSkip no longer injects "Please upload a document"
-       * Backend now ALWAYS responds, so skip means "no stream"
-       */
       onSkip: () => {
         updateLastAssistant((m) => {
           if (m && !m.content) {
@@ -99,6 +94,7 @@ export default function MessageInput({ hasMessages }) {
     compareMode,
     selectedDocuments,
     lastActiveDocument,
+    ensureSession,
     sendUserMessage,
     rag,
     updateLastAssistant,
@@ -109,23 +105,33 @@ export default function MessageInput({ hasMessages }) {
   const uploadFile = async (file) => {
     if (!file) return;
 
+    // 🔥 Ensure session before upload
+    const sessionId = await ensureSession();
+
     setFileState({ name: file.name, status: "uploading" });
 
     const formData = new FormData();
+    formData.append("session_id", sessionId);
     formData.append("file", file);
 
-    const res = await fetch(
-      "http://127.0.0.1:8000/ingest/file",
-      { method: "POST", body: formData }
-    );
+    try {
+      const res = await fetch(
+        "http://127.0.0.1:8000/ingest/file",
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
 
-    const data = await res.json();
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.detail);
 
-    if (data?.document_id) {
-      setLastActiveDocument(data.document_id);
       registerDocument(data.document_id);
+      setLastActiveDocument(data.document_id);
+
       setFileState({ name: file.name, status: "done" });
-    } else {
+    } catch (err) {
+      console.error("Upload failed:", err);
       setFileState({ name: file.name, status: "error" });
     }
   };
@@ -193,7 +199,6 @@ export default function MessageInput({ hasMessages }) {
           </div>
         </div>
 
-        {/* FILE STATUS PILL */}
         {fileState && (
           <div className={`altaric-file-pill ${fileState.status}`}>
             {fileState.name}
