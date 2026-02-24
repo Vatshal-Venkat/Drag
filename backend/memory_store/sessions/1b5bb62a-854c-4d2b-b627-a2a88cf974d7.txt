@@ -1,0 +1,6 @@
+User intent: What are the different Evaluation techniques
+Key answer: Based on our previous conversation, I recall that you asked about the different Evaluation techniques. [S1] However, since we didn't have a specific document or context to draw from, I'll provide a general overview of common evaluation techniques.
+
+ [S1]Some common evaluation techniques include:
+
+1. [S1] **Holdout Method**: A simple and straightforward approach where a portion of the data is set a

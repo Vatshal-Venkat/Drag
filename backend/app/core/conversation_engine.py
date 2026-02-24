@@ -108,7 +108,7 @@ class ConversationEngine:
         query: str,
         compare_mode: bool = False,
         document_ids: Optional[List[str]] = None,
-        top_k: int = 5,
+        top_k: int = 8,
         use_human_feedback: bool = True,
     ) -> Generator[Dict, None, None]:
 
@@ -143,6 +143,10 @@ class ConversationEngine:
             max_chars=6000,
         )
 
+        rewritten_query = rewrite_query(query, summary or "", trimmed_messages)
+        print("ORIGINAL:", query)
+        print("REWRITTEN:", rewritten_query)
+
         active_docs = (
             document_ids
             if document_ids
@@ -156,17 +160,19 @@ class ConversationEngine:
         if compare_mode and active_docs and len(active_docs) >= 2:
 
             grouped_contexts = retrieve_for_comparison(
-                query=query,
+                rewritten_query = rewrite_query(query, summary or "", trimmed_messages),
                 top_k=top_k,
                 document_ids=active_docs,
             )
+            print("ORIGINAL QUERY:", query)
+            print("REWRITTEN QUERY:", rewritten_query)
 
             aligned_sections = align_sections_hybrid(grouped_contexts)
 
             full_answer = ""
 
             for token in stream_aligned_comparison_answer(
-                query=query,
+                rewritten_query = rewrite_query(query, summary or "", trimmed_messages),
                 aligned_sections=aligned_sections,
             ):
                 full_answer += token
@@ -205,10 +211,12 @@ class ConversationEngine:
                 user_query=query,
             )
 
+            print("AGENT PLAN:", plan)
+
             actions = plan.get("actions", [])
 
-            if not actions:
-                break
+            if not actions or not any(a.get("name") == "generate" for a in actions):
+                actions.append({"name": "generate", "params": {}})
 
             for action in actions:
 
@@ -223,8 +231,9 @@ class ConversationEngine:
 
                     trimmed_contexts, _ = trim_context(
                         observations,
-                        max_chars=6000,
+                        max_chars=6000,          
                     )
+                    print("EXECUTING TOOL:", action_name)
 
                     full_answer = ""
 
@@ -262,6 +271,9 @@ class ConversationEngine:
                     yield {"type": "done"}
                     return
 
+                if action_name not in ["retrieve", "rerank", "search", "generate"]:
+                    continue
+                
                 # --------------------------------------------------
                 # TOOL EXECUTION
                 # --------------------------------------------------
@@ -273,7 +285,7 @@ class ConversationEngine:
 
                 try:
                     result = tool(
-                        query=query,
+                        query=rewritten_query,
                         document_id=(
                             active_docs[0] if active_docs else None
                         ),

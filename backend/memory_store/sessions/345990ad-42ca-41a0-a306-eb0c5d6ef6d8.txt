@@ -1,0 +1,5 @@
+User intent: What are the different evaluation techniques
+Key answer: There are several evaluation techniques used to assess the performance of a system, model, or process. [S1] Some common evaluation techniques include:
+
+1. [S1] **Accuracy**: Measures the proportion of correct predictions or classifications out of the total number of predictions or classifications made.
+ [S1]2. [S1] **Precision**: Measures the proportion of true positives (correct predictions) out 

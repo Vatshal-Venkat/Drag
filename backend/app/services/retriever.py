@@ -249,6 +249,10 @@ def retrieve(
                 + bm25_weight * bm25_score
             )
 
+            if "skill" in query.lower():
+                if "skill" in hit.get("text", "").lower():
+                    final_score += 0.2
+
             enriched = dict(hit)
             enriched["final_score"] = round(final_score, 4)
             enriched["_doc_id"] = store_id
