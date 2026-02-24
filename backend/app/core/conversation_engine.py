@@ -1,18 +1,25 @@
 from typing import List, Dict, Generator, Optional
 import re
+
 from app.core.llms import summarizer_llm
 from app.core.session_manager import session_manager
 from app.utils.context_trimmer import trim_messages, trim_context
+
 from app.services.retriever import (
     retrieve_context,
     retrieve_for_comparison,
     align_sections_hybrid,
 )
+
 from app.services.generator import (
     stream_answer,
     stream_aligned_comparison_answer,
     generate_sentence_citations,
 )
+
+from app.agents.planner_agent import plan_next_steps
+from app.tools.tool_registry import get_tool
+
 from app.registry.document_registry import list_documents
 
 
@@ -34,6 +41,7 @@ _REASONING_PATTERNS = [
     r"\bbased on\b",
 ]
 
+
 def rewrite_query(query: str, summary: str, messages: List[Dict]) -> str:
     """
     Rewrites user query using session memory for better retrieval.
@@ -44,21 +52,21 @@ def rewrite_query(query: str, summary: str, messages: List[Dict]) -> str:
     )
 
     system_prompt = """Rewrite the user's query to be clearer and more retrieval-optimized.
-                        Keep original meaning. Expand implicit references.
-                        Return ONLY the rewritten query."""
-    
+Keep original meaning. Expand implicit references.
+Return ONLY the rewritten query."""
+
     user_prompt = f"""
-                    Conversation Summary:
-                       {summary}
+Conversation Summary:
+{summary}
 
-                    Recent Conversation:
-                    {conversation_context}
-                        
-                    Original Query:
-                    {query}
+Recent Conversation:
+{conversation_context}
 
-                    Rewritten Query
-                    """.strip()
+Original Query:
+{query}
+
+Rewritten Query
+""".strip()
 
     rewritten = summarizer_llm([
         {"role": "system", "content": system_prompt},
@@ -66,6 +74,7 @@ def rewrite_query(query: str, summary: str, messages: List[Dict]) -> str:
     ])
 
     return rewritten.strip() if rewritten else query
+
 
 def should_use_react(query: str, active_docs: List[str]) -> bool:
     if not active_docs:
@@ -84,8 +93,11 @@ def should_use_react(query: str, active_docs: List[str]) -> bool:
 
 
 # ==========================================================
-# CONVERSATION ENGINE
+# CONVERSATION ENGINE (ITERATIVE A2A ENABLED)
 # ==========================================================
+
+MAX_AGENT_STEPS = 6
+
 
 class ConversationEngine:
 
@@ -109,7 +121,6 @@ class ConversationEngine:
             yield {"type": "error", "value": "Session not found"}
             return
 
-        # Save user message immediately
         session_manager.append_message(
             session_id=session_id,
             role="user",
@@ -139,7 +150,7 @@ class ConversationEngine:
         )
 
         # --------------------------------------------------
-        # COMPARISON MODE (BYPASS REACT)
+        # COMPARISON MODE (BYPASS A2A)
         # --------------------------------------------------
 
         if compare_mode and active_docs and len(active_docs) >= 2:
@@ -163,7 +174,6 @@ class ConversationEngine:
 
             yield {"type": "sources", "value": grouped_contexts}
 
-            # Save assistant response
             session_manager.append_message(
                 session_id=session_id,
                 role="assistant",
@@ -180,79 +190,120 @@ class ConversationEngine:
             return
 
         # --------------------------------------------------
-        # STANDARD RETRIEVAL
+        # ITERATIVE A2A ORCHESTRATION LOOP
         # --------------------------------------------------
 
-        rewritten_query = rewrite_query(query, summary or "", trimmed_messages)
-        print("ORIGINAL QUERY:", query)
-        print("REWRITTEN QUERY:", rewritten_query)
+        observations: List[Dict] = []
+        step_count = 0
 
-        contexts = []
+        while step_count < MAX_AGENT_STEPS:
 
-        if active_docs:
-            contexts = retrieve_context(
-                query=rewritten_query,
-                top_k=top_k,
-                document_id=active_docs[0],
+            step_count += 1
+
+            plan = plan_next_steps(
+                session_id=session_id,
+                user_query=query,
             )
 
-        trimmed_contexts, _ = trim_context(
-            contexts,
-            max_chars=6000,
-        )
+            actions = plan.get("actions", [])
+
+            if not actions:
+                break
+
+            for action in actions:
+
+                action_name = action.get("name")
+                params = action.get("params", {})
+
+                # --------------------------------------------------
+                # GENERATION STEP (FINAL)
+                # --------------------------------------------------
+
+                if action_name == "generate":
+
+                    trimmed_contexts, _ = trim_context(
+                        observations,
+                        max_chars=6000,
+                    )
+
+                    full_answer = ""
+
+                    for token in stream_answer(
+                        query=query,
+                        contexts=trimmed_contexts,
+                        summary=summary,
+                        conversation_messages=trimmed_messages,
+                        observations=session_manager.get_observations(session_id),
+                        use_human_feedback=use_human_feedback,
+                    ):
+                        full_answer += token
+                        yield {"type": "token", "value": token}
+
+                    citations = generate_sentence_citations(
+                        full_answer,
+                        trimmed_contexts,
+                    )
+
+                    yield {"type": "citations", "value": citations}
+                    yield {"type": "sources", "value": trimmed_contexts}
+
+                    session_manager.append_message(
+                        session_id=session_id,
+                        role="assistant",
+                        content=full_answer,
+                    )
+
+                    session_manager.maybe_update_summary(
+                        session_id=session_id,
+                        user_query=query,
+                        assistant_answer=full_answer,
+                    )
+
+                    yield {"type": "done"}
+                    return
+
+                # --------------------------------------------------
+                # TOOL EXECUTION
+                # --------------------------------------------------
+
+                tool = get_tool(action_name)
+
+                if not tool:
+                    continue
+
+                try:
+                    result = tool(
+                        query=query,
+                        document_id=(
+                            active_docs[0] if active_docs else None
+                        ),
+                        k=top_k,
+                        **params,
+                    )
+
+                    if result:
+
+                        if isinstance(result, list):
+                            observations.extend(result)
+                        else:
+                            observations.append(result)
+
+                        session_manager.add_observation(
+                            session_id=session_id,
+                            observation={
+                                "tool": action_name,
+                                "preview": str(result)[:500],
+                            },
+                        )
+
+                except Exception as e:
+                    observations.append({
+                        "tool": action_name,
+                        "error": str(e),
+                    })
 
         # --------------------------------------------------
-        # REACT DECISION
+        # SAFETY EXIT
         # --------------------------------------------------
 
-        use_react = should_use_react(query, active_docs)
-
-        # (Planner integration could be added here if needed)
-        # Currently relying on strong generator with full context.
-
-        # --------------------------------------------------
-        # GENERATION
-        # --------------------------------------------------
-
-        full_answer = ""
-
-        for token in stream_answer(
-            query=query,
-            contexts=trimmed_contexts,
-            summary=summary,
-            conversation_messages=trimmed_messages,
-            observations=session_manager.get_observations(session_id),
-            use_human_feedback=use_human_feedback,
-        ):
-            full_answer += token
-            yield {"type": "token", "value": token}
-
-        # --------------------------------------------------
-        # CITATIONS
-        # --------------------------------------------------
-
-        citations = generate_sentence_citations(
-            full_answer,
-            trimmed_contexts,
-        )
-
-        yield {"type": "citations", "value": citations}
-        yield {"type": "sources", "value": trimmed_contexts}
-
-        # --------------------------------------------------
-        # SAVE MEMORY
-        # --------------------------------------------------
-
-        session_manager.append_message(
-            session_id=session_id,
-            role="assistant",
-            content=full_answer,
-        )
-
-        session_manager.maybe_update_summary(
-            session_id=session_id,
-            user_query=query,
-            assistant_answer=full_answer,
-        )
-
-        yield {"type": "done"}
+        yield {"type": "error", "value": "Agent exceeded maximum steps"}
