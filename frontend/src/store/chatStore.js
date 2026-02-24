@@ -67,9 +67,12 @@ export const useChatStore = create((set, get) => ({
   messages: [],
   loading: false,
   error: null,
-
-  /* Prevents ChatHistoryItem crash */
   sessionSummaries: {},
+
+  /* 🔥 Alias for frontend simplicity */
+  get sessionId() {
+    return get().currentSessionId;
+  },
 
   setSessionSummary: (id, summary) =>
     set((state) => ({
@@ -84,11 +87,12 @@ export const useChatStore = create((set, get) => ({
      ================================================= */
   loadSessions: async () => {
     const sessions = await fetchSessions();
-    set({ sessions });
-
-    // Load documents alongside sessions (safe, async)
     const docs = await fetchDocuments();
-    set({ documents: docs?.documents || [] });
+
+    set({
+      sessions,
+      documents: docs?.documents || [],
+    });
   },
 
   startNewSession: async () => {
@@ -103,6 +107,14 @@ export const useChatStore = create((set, get) => ({
     }));
 
     return session.id;
+  },
+
+  ensureSession: async () => {
+    let { currentSessionId } = get();
+    if (!currentSessionId) {
+      currentSessionId = await get().startNewSession();
+    }
+    return currentSessionId;
   },
 
   loadSession: async (sessionId) => {
@@ -125,11 +137,7 @@ export const useChatStore = create((set, get) => ({
 
     if (!payload?.question?.trim()) return;
 
-    let { currentSessionId } = get();
-
-    if (!currentSessionId) {
-      currentSessionId = await get().startNewSession();
-    }
+    let sessionId = await get().ensureSession();
 
     const timestamp = new Date().toISOString();
 
@@ -152,6 +160,8 @@ export const useChatStore = create((set, get) => ({
       loading: true,
       error: null,
     }));
+
+    return sessionId;
   },
 
   updateLastAssistant: (updater) =>
