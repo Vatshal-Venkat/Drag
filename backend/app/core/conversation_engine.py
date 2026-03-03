@@ -189,7 +189,7 @@ class ConversationEngine:
         # IF NO DOCUMENTS → PURE CONVERSATIONAL MODE
         # ======================================================
 
-        if not active_docs:
+        if not active_docs and "Yes, please search the web." not in query:
             print("MODE: Conversational (No active docs)")
             full_answer = ""
 
@@ -279,6 +279,7 @@ class ConversationEngine:
             # If planner explicitly says chat → allow conversational fallback
             if plan.get("actions") and plan["actions"][0]["name"] == "chat":
                 print("MODE: Planner Chat Fallback")
+                
                 full_answer = ""
                 for token in stream_answer(
                     query=query,
@@ -305,8 +306,12 @@ class ConversationEngine:
                 tool = get_tool("search")
                 if not tool:
                     break
-                
-                search_query = plan["actions"][0].get("params", {}).get("query", query)
+                search_query = plan["actions"][0].get("params", {}).get("query")
+                if not search_query or "Yes, please search the web." in search_query:
+                    search_query = rewritten_query
+                    # Explicitly override the user's "Yes" query with the real query so the final RAG generation answers the actual question.
+                    query = rewritten_query
+
                 result = tool(query=search_query)
 
                 if result:

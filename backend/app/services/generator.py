@@ -2,6 +2,7 @@ from typing import List, Dict, Iterator, Optional
 import re
 import textwrap
 import json
+from pathlib import Path
 
 from app.llm.groq import groq_stream, groq_chat
 from app.config import GROQ_MODEL, LLM_TEMPERATURE
@@ -79,16 +80,9 @@ def _build_observations(observations: Optional[List[Dict]]) -> str:
 # AGENTIC SYSTEM PROMPT
 # =================================================
 
-BASE_SYSTEM_PROMPT = """You are an advanced conversational RAG generator.
-
-Rules:
-1. Use ONLY the provided document context for factual claims.
-2. Conversation memory is for continuity — NOT for factual invention.
-3. NEVER hallucinate missing document facts.
-4. If context is insufficient, say so clearly.
-5. Do NOT mention internal systems or architecture.
-6. Respond clearly, concisely, and naturally.
-"""
+PROMPT_FILE = Path(__file__).parent.parent / "prompts" / "rag_qa_prompt.txt"
+with open(PROMPT_FILE, "r") as f:
+    BASE_SYSTEM_PROMPT = f.read()
 
 
 # =================================================

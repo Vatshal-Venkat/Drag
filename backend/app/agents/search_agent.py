@@ -14,7 +14,7 @@ class SearchAgent(BaseAgent):
         """
         results = []
         try:
-            with DDGS() as ddgs:
+            with DDGS(timeout=10) as ddgs:
                 # Get top 5 text results
                 ddg_results = list(ddgs.text(query, max_results=5))
                 

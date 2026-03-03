@@ -66,7 +66,7 @@ def plan_next_steps(
     if "Yes, please search the web." in user_query:
         return {
             "actions": [
-                {"name": "search", "params": {"query": user_query.replace("Yes, please search the web.", "").strip() or user_query}},
+                {"name": "search", "params": {}},
                 {"name": "generate", "params": {}},
             ]
         }
