@@ -175,22 +175,20 @@ Answer:
     } if contexts else {}
 
     for token in _stream_llm(user_prompt):
-        buffer += token
         yield token
 
-        if contexts and sentence_end.search(buffer):
-            top_sources = sorted(
-                citation_map.items(),
-                key=lambda x: float(x[1].get("confidence", 0)),
-                reverse=True
-            )[:2]
-
-            citation_tag = " [" + ",".join(
-                f"S{sid}" for sid, _ in top_sources
-            ) + "]"
-
-            yield citation_tag
-            buffer = ""
+    if contexts:
+        unique_sources = []
+        seen = set()
+        for ctx in contexts:
+            src = ctx.get("source")
+            if src and src.lower() != "unknown" and src not in seen:
+                seen.add(src)
+                unique_sources.append(src)
+        
+        if unique_sources:
+            sources_str = "\n\n**Sources: " + ", ".join(unique_sources) + "**"
+            yield sources_str
 
 
 # =================================================
