@@ -78,5 +78,20 @@
     "document_id": "IDS - Unit I (1).pdf",
     "pages": 16,
     "chunks": 36
+  },
+  "Kuppili-Venkat-Vatshal.pdf": {
+    "document_id": "Kuppili-Venkat-Vatshal.pdf",
+    "pages": 2,
+    "chunks": 3
+  },
+  "Sample_FIR_AlluriSitharamaRaju_RoadAccident.pdf": {
+    "document_id": "Sample_FIR_AlluriSitharamaRaju_RoadAccident.pdf",
+    "pages": 2,
+    "chunks": 2
+  },
+  "transformations_cv_notes.pdf": {
+    "document_id": "transformations_cv_notes.pdf",
+    "pages": 3,
+    "chunks": 3
   }
 }
