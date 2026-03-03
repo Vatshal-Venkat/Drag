@@ -2,9 +2,8 @@ import { useState, useRef } from "react";
 import { useChatStore } from "../store/chatStore";
 
 export default function FileIngest() {
-  const registerDocument = useChatStore(
-    (s) => s.registerDocument
-  );
+  const registerDocument = useChatStore((s) => s.registerDocument);
+  const sessionId = useChatStore((s) => s.sessionId);
 
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState("");
@@ -13,12 +12,13 @@ export default function FileIngest() {
   const fileInputRef = useRef(null);
 
   async function uploadFile() {
-    if (!file) return;
+    if (!file || !sessionId) return;
 
     setLoading(true);
     setStatus("Uploading…");
 
     const formData = new FormData();
+    formData.append("session_id", sessionId);
     formData.append("file", file);
 
     try {
@@ -32,7 +32,8 @@ export default function FileIngest() {
 
       registerDocument(data.document_id);
       setStatus(`Indexed ${data.chunks ?? "?"} chunks`);
-    } catch {
+    } catch (err) {
+      console.error(err);
       setStatus("Upload failed");
     } finally {
       setLoading(false);
