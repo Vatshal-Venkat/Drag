@@ -8,4 +8,5 @@ groq
 python-dotenv
 rank-bm25
 faiss-cpu
+duckduckgo-search
 

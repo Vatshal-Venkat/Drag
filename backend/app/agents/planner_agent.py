@@ -61,6 +61,17 @@ def plan_next_steps(
     active_docs = session_manager.get_active_documents(session_id)
 
     # --------------------------------------------------
+    # 🔹 AUTO-SEARCH MODE
+    # --------------------------------------------------
+    if "Yes, please search the web." in user_query:
+        return {
+            "actions": [
+                {"name": "search", "params": {"query": user_query.replace("Yes, please search the web.", "").strip() or user_query}},
+                {"name": "generate", "params": {}},
+            ]
+        }
+
+    # --------------------------------------------------
     # 🔹 AUTO-COMPARISON MODE
     # --------------------------------------------------
     if _is_comparison_query(user_query) and len(active_docs) >= 2:

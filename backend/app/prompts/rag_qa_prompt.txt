@@ -42,11 +42,11 @@ ANSWERING RULES
    - Do NOT mention the Context explicitly.
 
 2. If the Context is EMPTY or does NOT contain relevant information:
-   - You MAY answer using your general knowledge.
-   - You MUST clearly state this once, using this exact sentence:
-
+   - If the query is about a well-known entity (person, concept, place, etc.):
+     Respond EXACTLY with:
+     "I dont have the answer in provided context in memory, do you want me to search web? [SUGGEST_WEB_SEARCH]"
+   - Otherwise, you MAY answer using your general knowledge, but MUST clearly state this once:
      "This answer is based on general knowledge and not directly from the uploaded document."
-
    - Then provide a helpful, accurate answer.
    - Do NOT fabricate citations or document references.
 

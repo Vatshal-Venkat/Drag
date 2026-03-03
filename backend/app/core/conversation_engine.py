@@ -300,6 +300,27 @@ class ConversationEngine:
                 yield {"type": "done"}
                 return
 
+            if plan.get("actions") and plan["actions"][0]["name"] == "search":
+                print("EXECUTING TOOL: search")
+                tool = get_tool("search")
+                if not tool:
+                    break
+                
+                search_query = plan["actions"][0].get("params", {}).get("query", query)
+                result = tool(query=search_query)
+
+                if result:
+                    for r in result:
+                        print("CONF:", r.get("confidence"), "| FINAL:", r.get("final_score"))
+                        print("TEXT:", r.get("text", "")[:200])
+                        print("-" * 60)
+                else:
+                    print("No chunks retrieved from search")
+                
+                # Do not run strict semantic reranking/filtering on web results to ensure they pass
+                observations.extend(result or [])
+                break
+
             # Force retrieve in strict RAG
             print("EXECUTING TOOL: retrieve")
 
@@ -309,7 +330,7 @@ class ConversationEngine:
 
             result = tool(
                 query=rewritten_query,
-                document_id=active_docs[0],
+                document_id=active_docs[0] if active_docs else None,
                 k=top_k,
             )
 
@@ -327,7 +348,7 @@ class ConversationEngine:
             if not reranked:
                 yield {
                     "type": "token",
-                    "value": "No relevant context found in uploaded documents."
+                    "value": "No relevant context found in uploaded documents. Would you like me to search the web instead? [SUGGEST_WEB_SEARCH]"
                 }
                 yield {"type": "done"}
                 return
