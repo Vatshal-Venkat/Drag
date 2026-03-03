@@ -233,7 +233,7 @@ class ConversationEngine:
             if not any(grouped.values()):
                 yield {
                     "type": "token",
-                    "value": "No relevant context found in uploaded documents."
+                    "value": "No relevant context found in uploaded documents. Would you like me to search the web instead? [SUGGEST_WEB_SEARCH]"
                 }
                 yield {"type": "done"}
                 return
