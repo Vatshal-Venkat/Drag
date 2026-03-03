@@ -67,8 +67,11 @@ export default function Message({ role, content, citations = [] }) {
 
           if (line.startsWith("- ") || line.startsWith("•")) {
             return (
-              <div key={i} style={styles.bullet}>
-                {line.replace(/^[-•]\s*/, "")}
+              <div key={i} style={styles.bulletWrapper}>
+                <span style={styles.bulletIcon}>•</span>
+                <span style={styles.bulletText}>
+                  {parseBoldText(line.replace(/^[-•]\s*/, ""))}
+                </span>
               </div>
             );
           }
@@ -111,8 +114,19 @@ const styles = {
   text: {
     marginBottom: "6px",
   },
-  bullet: {
+  bulletWrapper: {
+    display: "flex",
     marginBottom: "6px",
     paddingLeft: "12px",
+    alignItems: "flex-start",
+  },
+  bulletIcon: {
+    marginRight: "8px",
+    color: "#94a3b8",
+    fontSize: "14px",
+    lineHeight: "1.65",
+  },
+  bulletText: {
+    flex: 1,
   },
 };

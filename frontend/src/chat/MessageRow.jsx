@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import SourceCitations from "../components/SourceCitations";
+import { useChatStore } from "../store/chatStore";
 
 /* ================================
    Utilities
@@ -125,23 +126,26 @@ export default function MessageRow({
 }) {
   const isUser = role === "user";
 
-  const [openSections, setOpenSections] =
-    useState({});
-  const [viewMode, setViewMode] =
-    useState("structured");
-  const [copied, setCopied] =
-    useState(false);
+  const [openSections, setOpenSections] = useState({});
+  const [viewMode, setViewMode] = useState("structured");
+  const [copied, setCopied] = useState(false);
+  const [searchDismissed, setSearchDismissed] = useState(false);
+
+  const sendUserMessage = useChatStore((s) => s.sendUserMessage);
 
   const sectionRefs = useRef({});
 
-  const fallback =
-    content?.includes(
-      "No comparable sections were found"
-    );
+  let cleanContent = content || "";
+  const isWebSearchSuggested = cleanContent.includes("[SUGGEST_WEB_SEARCH]");
+  if (isWebSearchSuggested) {
+    cleanContent = cleanContent.replace("[SUGGEST_WEB_SEARCH]", "").trim();
+  }
+
+  const fallback = cleanContent.includes("No comparable sections were found");
 
   const sections =
     !isUser && !fallback
-      ? parseSections(content || "")
+      ? parseSections(cleanContent)
       : null;
 
   /* ================================
@@ -172,13 +176,13 @@ export default function MessageRow({
       setTimeout(() => {
         sectionRefs.current[
           firstHighIndex
-        ].scrollIntoView({
+        ]?.scrollIntoView({
           behavior: "smooth",
           block: "center",
         });
       }, 400);
     }
-  }, [content]);
+  }, [cleanContent]);
 
   function toggleSection(i) {
     setOpenSections((prev) => ({
@@ -220,7 +224,7 @@ export default function MessageRow({
         }}
       >
         {/* USER */}
-        {isUser && <div>{parseBoldText(content)}</div>}
+        {isUser && <div>{parseBoldText(cleanContent)}</div>}
 
         {/* ASSISTANT */}
         {!isUser && (
@@ -279,9 +283,9 @@ export default function MessageRow({
                   <div
                     key={i}
                     ref={(el) =>
-                      (sectionRefs.current[
-                        i
-                      ] = el)
+                    (sectionRefs.current[
+                      i
+                    ] = el)
                     }
                     style={styles.sectionBox}
                   >
@@ -355,7 +359,28 @@ export default function MessageRow({
             {/* Raw */}
             {(!sections ||
               viewMode === "raw") && (
-              <div>{parseBoldText(content)}</div>
+                <div>{parseBoldText(cleanContent)}</div>
+              )}
+
+            {/* Web Search Prompt */}
+            {isWebSearchSuggested && !searchDismissed && (
+              <div style={styles.webSearchPrompt}>
+                <button
+                  style={styles.btnYes}
+                  onClick={() => {
+                    setSearchDismissed(true);
+                    sendUserMessage("Yes, please search the web.");
+                  }}
+                >
+                  Yes
+                </button>
+                <button
+                  style={styles.btnNo}
+                  onClick={() => setSearchDismissed(true)}
+                >
+                  No
+                </button>
+              </div>
             )}
 
             {/* Copy */}
@@ -423,6 +448,33 @@ const styles = {
     padding: "6px 10px",
     borderRadius: 8,
     color: "#000",
+    cursor: "pointer",
+  },
+
+  webSearchPrompt: {
+    display: "flex",
+    gap: 10,
+    marginTop: 16,
+    paddingTop: 12,
+    borderTop: "1px solid rgba(255,255,255,0.1)",
+  },
+
+  btnYes: {
+    background: "linear-gradient(135deg, #10b981, #059669)",
+    border: "none",
+    padding: "6px 16px",
+    borderRadius: 6,
+    color: "#fff",
+    cursor: "pointer",
+    fontWeight: "bold",
+  },
+
+  btnNo: {
+    background: "#334155",
+    border: "none",
+    padding: "6px 16px",
+    borderRadius: 6,
+    color: "#fff",
     cursor: "pointer",
   },
 
