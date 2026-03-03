@@ -9,6 +9,18 @@ function getSimilarityPercent(score) {
   return Math.min(Math.max(score * 100, 0), 100);
 }
 
+function parseBoldText(text) {
+  if (!text) return null;
+  if (typeof text !== "string") return text;
+  const parts = text.split(/(\*\*.*?\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={i}>{part.slice(2, -2)}</strong>;
+    }
+    return <span key={i}>{part}</span>;
+  });
+}
+
 function parseSections(content) {
   const regex =
     /Section\s+\d+\s+\(Similarity:\s+([\d.]+)\)/g;
@@ -208,7 +220,7 @@ export default function MessageRow({
         }}
       >
         {/* USER */}
-        {isUser && <div>{content}</div>}
+        {isUser && <div>{parseBoldText(content)}</div>}
 
         {/* ASSISTANT */}
         {!isUser && (
@@ -322,7 +334,7 @@ export default function MessageRow({
                             styles.docColumn
                           }
                         >
-                          {left}
+                          {parseBoldText(left)}
                         </div>
 
                         {right && (
@@ -331,7 +343,7 @@ export default function MessageRow({
                               styles.docColumn
                             }
                           >
-                            {right}
+                            {parseBoldText(right)}
                           </div>
                         )}
                       </div>
@@ -343,7 +355,7 @@ export default function MessageRow({
             {/* Raw */}
             {(!sections ||
               viewMode === "raw") && (
-              <div>{content}</div>
+              <div>{parseBoldText(content)}</div>
             )}
 
             {/* Copy */}

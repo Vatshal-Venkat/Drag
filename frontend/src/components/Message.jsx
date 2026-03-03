@@ -1,3 +1,15 @@
+function parseBoldText(text) {
+  if (!text) return null;
+  if (typeof text !== "string") return text;
+  const parts = text.split(/(\*\*.*?\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={i}>{part.slice(2, -2)}</strong>;
+    }
+    return <span key={i}>{part}</span>;
+  });
+}
+
 export default function Message({ role, content, citations = [] }) {
   if (role === "user") {
     return (
@@ -63,7 +75,7 @@ export default function Message({ role, content, citations = [] }) {
 
           return (
             <div key={i} style={styles.text}>
-              {line}
+              {parseBoldText(line)}
             </div>
           );
         })}
