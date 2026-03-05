@@ -136,8 +136,11 @@ export default function MessageRow({
   const sectionRefs = useRef({});
 
   let cleanContent = content || "";
-  const isWebSearchSuggested = cleanContent.includes("[SUGGEST_WEB_SEARCH]");
-  if (isWebSearchSuggested) {
+  const isWebSearchSuggested =
+    cleanContent.includes("[SUGGEST_WEB_SEARCH]") ||
+    cleanContent.toLowerCase().includes("do you want me to search web?");
+
+  if (cleanContent.includes("[SUGGEST_WEB_SEARCH]")) {
     cleanContent = cleanContent.replace("[SUGGEST_WEB_SEARCH]", "").trim();
   }
 
@@ -364,7 +367,7 @@ export default function MessageRow({
 
             {/* Web Search Prompt */}
             {isWebSearchSuggested && !searchDismissed && (
-              <div style={styles.webSearchPrompt}>
+              <div style={{ ...styles.webSearchPrompt, marginBottom: "16px" }}>
                 <button
                   style={styles.btnYes}
                   onClick={() => {
