@@ -361,7 +361,7 @@ class ConversationEngine:
 
                 result = tool(
                     query=rewritten_query,
-                    document_id=active_docs[0] if active_docs else None,
+                    document_ids=active_docs,
                     k=top_k,
                 )
 

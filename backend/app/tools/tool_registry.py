@@ -17,7 +17,7 @@ def register_tool(name: str):
 
 
 # =========================================================
-# 🔹 RETRIEVE TOOL (FIXED MULTI-DOC SUPPORT)
+# 🔹 RETRIEVE TOOL
 # =========================================================
 
 @register_tool("retrieve")
@@ -42,55 +42,40 @@ def _retrieve_tool(**kwargs):
     # ----------------------------
     # 2️⃣ Normalize Document Keys
     # ----------------------------
-    document_id = (
+    docs_list = (
+        kwargs.get("document_ids")
+        or kwargs.get("documents")
+        or kwargs.get("docs")
+    )
+
+    doc_single = (
         kwargs.get("document_id")
         or kwargs.get("id")
         or kwargs.get("document")
     )
 
-    documents = (
-        kwargs.get("documents")
-        or kwargs.get("docs")
-    )
-
     session_id = kwargs.get("session_id")
 
-    # ----------------------------
-    # 3️⃣ If specific single doc
-    # ----------------------------
-    if document_id:
+    final_doc_ids = []
+    
+    if docs_list and isinstance(docs_list, list):
+        final_doc_ids.extend(docs_list)
+    elif doc_single:
+        final_doc_ids.append(doc_single)
+    elif session_id:
+        active = session_manager.get_active_documents(session_id)
+        if active:
+            final_doc_ids.extend(active)
+
+    if final_doc_ids:
         return retrieve(
             query=query,
             k=k,
-            document_id=document_id,
+            document_ids=final_doc_ids,
         )
 
     # ----------------------------
-    # 4️⃣ Multi-doc list
-    # ----------------------------
-    if documents and isinstance(documents, list):
-        merged = []
-        for doc in documents:
-            merged.extend(
-                retrieve(query=query, k=k, document_id=doc)
-            )
-        return merged
-
-    # ----------------------------
-    # 5️⃣ Active session docs
-    # ----------------------------
-    if session_id:
-        active_docs = session_manager.get_active_documents(session_id)
-        if active_docs:
-            merged = []
-            for doc in active_docs:
-                merged.extend(
-                    retrieve(query=query, k=k, document_id=doc)
-                )
-            return merged
-
-    # ----------------------------
-    # 6️⃣ Global fallback
+    # 3️⃣ Global fallback
     # ----------------------------
     return retrieve(query=query, k=k)
 

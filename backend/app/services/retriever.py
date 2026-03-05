@@ -201,13 +201,17 @@ def retrieve_for_comparison(
 def retrieve(
     query: str,
     k: int = 5,
-    document_id: Optional[str] = None,
+    document_ids: Optional[List[str]] = None,
 ) -> List[Dict]:
 
-    if document_id:
-        return retrieve_context(query, k, document_id)
+    if document_ids and len(document_ids) == 1:
+        return retrieve_context(query, k, document_ids[0])
 
-    stores = list_all_document_stores()
+    if document_ids:
+        stores = [get_store_for_document(d_id) for d_id in document_ids]
+    else:
+        stores = list_all_document_stores()
+        
     if not stores:
         return []
 

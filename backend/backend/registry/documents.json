@@ -93,5 +93,15 @@
     "document_id": "transformations_cv_notes.pdf",
     "pages": 3,
     "chunks": 3
+  },
+  "ChatGPT Image Jan 12, 2026, 01_01_27 PM.png": {
+    "document_id": "ChatGPT Image Jan 12, 2026, 01_01_27 PM.png",
+    "pages": 1,
+    "chunks": 4
+  },
+  "photo.jpeg": {
+    "document_id": "photo.jpeg",
+    "pages": 1,
+    "chunks": 3
   }
 }

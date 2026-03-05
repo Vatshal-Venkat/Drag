@@ -38,6 +38,7 @@ Rules:
 5. Prefer local tools before MCP tools
 6. MCP tools MUST come before generate. Prefix MCP tool names with "mcp:" in the JSON.
 7. Always end with "generate" unless chat-only
+8. If the Session State shows active_documents, you MUST plan to "retrieve" before "generate"
 """
 
 
