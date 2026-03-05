@@ -17,19 +17,18 @@ COMPARISON_KEYWORDS = [
 ]
 
 
-PLANNER_SYSTEM_PROMPT = """You are a Planner Agent.
+PLANNING_INSTRUCTION = """You are a Planner Agent.
 
 Your job is to decide WHAT actions to take, not to answer the user.
 
-Available actions:
+Available local actions:
 - chat
 - retrieve
-- rerank
-- generate
 - search
+- generate
 
-External tools (if enabled):
-- mcp:<tool_name>
+External tools (from MCP):
+{mcp_tools_list}
 
 Rules:
 1. Output ONLY valid JSON
@@ -37,7 +36,7 @@ Rules:
 3. Do NOT answer the user
 4. Choose the MINIMUM actions needed
 5. Prefer local tools before MCP tools
-6. MCP tools MUST come before generate
+6. MCP tools MUST come before generate. Prefix MCP tool names with "mcp:" in the JSON.
 7. Always end with "generate" unless chat-only
 """
 
@@ -107,8 +106,18 @@ Return a JSON plan with this schema:
 }}
 """.strip()
 
+    mcp_tools_list = "None"
+    if MCP_ENABLED:
+        from app.mcp.mcp_client import MCPClient
+        client = MCPClient()
+        tools = client.discover_tools()
+        if tools:
+            mcp_tools_list = "\n".join(f"- mcp:{t}" for t in tools.keys())
+
+    system_prompt = PLANNING_INSTRUCTION.format(mcp_tools_list=mcp_tools_list)
+
     messages = [
-        {"role": "system", "content": PLANNER_SYSTEM_PROMPT},
+        {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_prompt},
     ]
 

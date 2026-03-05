@@ -33,10 +33,11 @@ def _build_context(contexts: List[Dict]) -> str:
     blocks = []
 
     for i, c in enumerate(contexts, start=1):
+        location = c.get('page', 'N/A')
         block = f"""
 [Source {i}]
 Document: {c.get('source', 'unknown')}
-Page: {c.get('page', 'N/A')}
+Location/Page: {location}
 Relevance: {round(float(c.get('confidence', 0)), 3)}
 
 Content:

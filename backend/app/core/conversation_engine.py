@@ -264,49 +264,74 @@ class ConversationEngine:
         # ======================================================
 
         observations: List[Dict] = []
-        step_count = 0
+        
+        # Instantiate MCP Client and discover tools
+        from app.mcp.mcp_client import MCPClient
+        mcp_client = MCPClient()
+        mcp_tools = mcp_client.discover_tools()
 
-        while step_count < MAX_AGENT_STEPS:
-            step_count += 1
+        plan = plan_next_steps(
+            session_id=session_id,
+            user_query=query,
+        )
 
-            plan = plan_next_steps(
+        print("AGENT PLAN:", plan)
+        actions = plan.get("actions", [])
+
+        if actions and actions[0].get("name") == "chat":
+            print("MODE: Planner Chat Fallback")
+            
+            full_answer = ""
+            for token in stream_answer(
+                query=query,
+                contexts=[],
+                summary=summary,
+                conversation_messages=trimmed_messages,
+                observations=None,
+                use_human_feedback=use_human_feedback,
+            ):
+                full_answer += token
+                yield {"type": "token", "value": token}
+
+            session_manager.append_message(
                 session_id=session_id,
-                user_query=query,
+                role="assistant",
+                content=full_answer,
             )
 
-            print("AGENT PLAN:", plan)
-
-            # If planner explicitly says chat → allow conversational fallback
-            if plan.get("actions") and plan["actions"][0]["name"] == "chat":
-                print("MODE: Planner Chat Fallback")
+            yield {"type": "done"}
+            return
+            
+        for action in actions:
+            action_name = action.get("name")
+            params = action.get("params", {})
+            
+            if action_name == "generate":
+                break
                 
-                full_answer = ""
-                for token in stream_answer(
-                    query=query,
-                    contexts=[],
-                    summary=summary,
-                    conversation_messages=trimmed_messages,
-                    observations=None,
-                    use_human_feedback=use_human_feedback,
-                ):
-                    full_answer += token
-                    yield {"type": "token", "value": token}
+            if action_name.startswith("mcp:"):
+                # Handle MCP tool execution
+                mcp_tool_name = action_name.split(":", 1)[1]
+                print(f"EXECUTING MCP TOOL: {mcp_tool_name}")
+                if mcp_tool_name in mcp_tools:
+                    try:
+                        mcp_result = mcp_tools[mcp_tool_name](**params)
+                        observations.append({
+                            "source": f"MCP: {mcp_tool_name}",
+                            "text": str(mcp_result)
+                        })
+                    except Exception as e:
+                        print(f"MCP Tool {mcp_tool_name} failed: {e}")
+                else:
+                    print(f"MCP Tool {mcp_tool_name} not found")
+                continue
 
-                session_manager.append_message(
-                    session_id=session_id,
-                    role="assistant",
-                    content=full_answer,
-                )
-
-                yield {"type": "done"}
-                return
-
-            if plan.get("actions") and plan["actions"][0]["name"] == "search":
+            if action_name == "search":
                 print("EXECUTING TOOL: search")
                 tool = get_tool("search")
                 if not tool:
-                    break
-                search_query = plan["actions"][0].get("params", {}).get("query")
+                    continue
+                search_query = params.get("query")
                 if not search_query or "Yes, please search the web." in search_query:
                     search_query = rewritten_query
                     # Explicitly override the user's "Yes" query with the real query so the final RAG generation answers the actual question.
@@ -324,42 +349,43 @@ class ConversationEngine:
                 
                 # Do not run strict semantic reranking/filtering on web results to ensure they pass
                 observations.extend(result or [])
-                break
+                continue
+                
+            if action_name == "retrieve":
+                # Force retrieve in strict RAG
+                print("EXECUTING TOOL: retrieve")
 
-            # Force retrieve in strict RAG
-            print("EXECUTING TOOL: retrieve")
+                tool = get_tool("retrieve")
+                if not tool:
+                    continue
 
-            tool = get_tool("retrieve")
-            if not tool:
-                break
+                result = tool(
+                    query=rewritten_query,
+                    document_id=active_docs[0] if active_docs else None,
+                    k=top_k,
+                )
 
-            result = tool(
-                query=rewritten_query,
-                document_id=active_docs[0] if active_docs else None,
-                k=top_k,
-            )
+                
+                if result:
+                    for r in result:
+                        print("CONF:", r.get("confidence"), "| FINAL:", r.get("final_score"))
+                        print("TEXT:", r.get("text", "")[:200])
+                        print("-" * 60)
+                else:
+                    print("No chunks retrieved")
+                filtered = filter_chunks(result or [])
+                reranked = semantic_rerank(rewritten_query, filtered)
 
-            
-            if result:
-                for r in result:
-                    print("CONF:", r.get("confidence"), "| FINAL:", r.get("final_score"))
-                    print("TEXT:", r.get("text", "")[:200])
-                    print("-" * 60)
-            else:
-                print("No chunks retrieved")
-            filtered = filter_chunks(result or [])
-            reranked = semantic_rerank(rewritten_query, filtered)
+                if not reranked:
+                    yield {
+                        "type": "token",
+                        "value": "No relevant context found in uploaded documents. Would you like me to search the web instead? [SUGGEST_WEB_SEARCH]"
+                    }
+                    yield {"type": "done"}
+                    return
 
-            if not reranked:
-                yield {
-                    "type": "token",
-                    "value": "No relevant context found in uploaded documents. Would you like me to search the web instead? [SUGGEST_WEB_SEARCH]"
-                }
-                yield {"type": "done"}
-                return
-
-            observations.extend(reranked)
-            break
+                observations.extend(reranked)
+                continue
 
         # ======================================================
         # GENERATE FROM STRICT CONTEXT

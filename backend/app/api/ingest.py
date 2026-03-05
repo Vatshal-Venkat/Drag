@@ -28,7 +28,7 @@ async def ingest_file(
     # 1. Extract Text
     # --------------------------------------------------
     try:
-        documents = extract_text_from_file(file)
+        documents = await extract_text_from_file(file)
     except Exception as e:
         logger.error(f"Extraction failed: {e}")
         raise HTTPException(
