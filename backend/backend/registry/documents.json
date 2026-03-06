@@ -103,5 +103,10 @@
     "document_id": "photo.jpeg",
     "pages": 1,
     "chunks": 3
+  },
+  "VID20250225165300.mp4": {
+    "document_id": "VID20250225165300.mp4",
+    "pages": 1,
+    "chunks": 1
   }
 }
