@@ -62,7 +62,7 @@ export default function SourceCitations({ sources = [] }) {
                       fontSize: 12,
                     }}
                   >
-                    · Page {s.page}
+                    · {String(s.page).includes(':') || String(s.page).includes('Scene') ? s.page : `Page ${s.page}`}
                   </span>
                 )}
               </div>

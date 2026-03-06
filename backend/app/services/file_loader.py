@@ -8,6 +8,8 @@ import openpyxl
 from fastapi import UploadFile
 from google import genai
 from google.genai import types
+import time
+import json
 
 def _get_genai_client():
     api_key = os.getenv("GEMINI_API_KEY")
@@ -27,18 +29,32 @@ def extract_media_with_gemini(file_path: str, mime_type: str, filename: str) -> 
     # We use a context manager if possible, but genai.Client.files.upload returns a file object
     uploaded_file = client.files.upload(file=file_path, config={'mime_type': mime_type})
     
+    # Wait for the file to finish processing by Google's backend before we query it
+    while uploaded_file.state.name == "PROCESSING":
+        time.sleep(2)
+        uploaded_file = client.files.get(name=uploaded_file.name)
+        
+    if uploaded_file.state.name == "FAILED":
+        client.files.delete(name=uploaded_file.name)
+        raise RuntimeError("Google Gemini failed to process the uploaded media file.")
+    
     prompt = (
         "You are an expert data extractor for a Retrieval-Augmented Generation (RAG) system. "
         "Analyze this file comprehensively. "
         "If it's an image, describe all visual elements, text (OCR), charts, and context in extreme detail. "
-        "If it's audio/video, provide a full accurate transcript and describe any important visual/auditory context. "
-        "Return ONLY the extracted text and detailed descriptions. Do not add conversational filler."
+        "If it's audio/video, break the media down into a sequence of scenes or chronological segments. "
+        "For each segment, provide a detailed description of the visual action and a full accurate transcript of the audio. "
+        "You MUST output exactly valid JSON in the following format: "
+        '[{"timestamp": "00:00-00:30", "text": "Detailed description and transcript here..."}, ...]'
     )
     
     try:
         response = client.models.generate_content(
             model='gemini-2.5-flash',
-            contents=[uploaded_file, prompt]
+            contents=[uploaded_file, prompt],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+            )
         )
         text = response.text.strip()
     finally:
@@ -48,11 +64,27 @@ def extract_media_with_gemini(file_path: str, mime_type: str, filename: str) -> 
     if not text:
         return []
         
-    return [{
-        "text": text,
-        "page": 1, 
-        "source": filename
-    }]
+    import json
+    try:
+        scenes = json.loads(text)
+        documents = []
+        for i, scene in enumerate(scenes):
+            scene_text = scene.get("text", "")
+            timestamp = scene.get("timestamp", f"Scene {i+1}")
+            if scene_text:
+                documents.append({
+                    "text": f"[{timestamp}] {scene_text}",
+                    "page": timestamp, # Using page for timestamp metadata
+                    "source": filename
+                })
+        return documents
+    except json.JSONDecodeError:
+        # Fallback if json fails
+        return [{
+            "text": text,
+            "page": "1", 
+            "source": filename
+        }]
 
 
 async def extract_text_from_file(file: UploadFile) -> List[Dict]:
