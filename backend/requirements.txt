@@ -12,3 +12,6 @@ duckduckgo-search
 pillow
 python-pptx
 openpyxl
+requests
+numpy
+pydantic
