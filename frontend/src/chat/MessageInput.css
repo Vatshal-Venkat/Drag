@@ -3,48 +3,56 @@
    ========================= */
 .altaric-dock {
   position: fixed;
-  /* ✅ FIX: restore layout context */
   left: 0;
   right: 0;
-  bottom: 20px;
-  /* ✅ FIX: floating input bar */
+  bottom: 30px;
+  /* Floating higher */
   z-index: 40;
 
   display: flex;
   justify-content: center;
-  pointer-events: auto;
-
-  background: linear-gradient(180deg,
-      rgba(20, 20, 24, 0),
-      rgba(20, 20, 24, 0.85));
+  pointer-events: none;
+  /* Let clicks pass through empty background */
 }
 
 /* =========================
    Width shell
    ========================= */
 .altaric-bar {
-  width: 70%;
+  width: 75%;
   min-width: 600px;
   max-width: 880px;
   position: relative;
+  pointer-events: auto;
+  /* Re-enable clicks inside the bar */
 }
 
 /* =========================
-   Gradient frame
+   Gradient frame & Glow
    ========================= */
 .altaric-gradient-border {
   padding: 1px;
-  border-radius: 22px;
-  background: linear-gradient(110deg,
-      rgba(0, 229, 201, 0.9),
-      rgba(26, 140, 255, 0.9));
+  /* The 1px padding acts as the "border" width */
+  border-radius: 32px;
+
+  /* Very subtle grey/white ring when inactive */
+  background: rgba(255, 255, 255, 0.1);
+
+  /* Standard shadow for floating effect */
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+
+  transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-/* Error border */
+/* On focus, light up exactly the 1px border ring with a sophisticated gradient color. No filling the box. */
+.altaric-gradient-border:focus-within {
+  background: linear-gradient(110deg, #00e5c9, #1a8cff);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  transform: translateY(-1px);
+}
+
 .altaric-border-error {
-  background: linear-gradient(110deg,
-      rgba(245, 158, 11, 0.9),
-      rgba(217, 119, 6, 0.9));
+  background: rgba(245, 158, 11, 0.8);
 }
 
 /* =========================
@@ -52,12 +60,22 @@
    ========================= */
 .altaric-glass {
   display: flex;
-  align-items: center;
-  /* Center vertically instead of flex-end */
+  align-items: flex-end;
+  /* Using flex-end keeps buttons anchored at the bottom as text grows */
   gap: 12px;
-  padding: 16px 18px;
-  border-radius: 20px;
+  padding: 8px 16px;
+  border-radius: 31px;
+  /* Just 1px less than outer border */
+
+  /* Remove any extra borders we added directly to the glass */
+  border: none;
+
+  /* Premium Dark Glass */
   background: #0f1720;
+  /* Dark solid core so the gradient border DOES NOT leak inside */
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow: none;
 }
 
 /* =========================
@@ -72,15 +90,23 @@
   max-height: 140px;
   overflow-y: auto;
 
-  color: #e7ebef;
-  font-size: 15px;
-  line-height: normal;
-  /* remove fixed line-height dragging it down */
-  padding-top: 10px;
-  /* add specific padding to balance it inside flex layout */
+  color: #f8fafc;
+  font-size: 16px;
+  /* Slightly larger, modern font size */
+  font-family: inherit;
+  font-weight: 400;
 
-  /* hide scrollbar for cleaner look */
+  /* Perfect vertical centering trick for auto-growing flex-end textareas */
+  padding: 12px 4px;
+  margin: 0;
+  line-height: 1.5;
+
   scrollbar-width: none;
+}
+
+.altaric-glass textarea::placeholder {
+  color: #64748b;
+  font-weight: 400;
 }
 
 .altaric-glass textarea::-webkit-scrollbar {
@@ -88,18 +114,20 @@
 }
 
 /* =========================
-   + Button
+   Icon Buttons (Paperclip & Voice)
    ========================= */
-.altaric-icon-button {
+.altaric-icon-button,
+.altaric-voice-button {
   background: transparent;
   border: none;
-  border-radius: 10px;
+  border-radius: 12px;
 
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 2px;
+  /* Fine-tune bottom alignment with text baseline */
 
-  font-size: 28px;
-  color: #2dd4bf;
+  color: #94a3b8;
   cursor: pointer;
 
   display: flex;
@@ -107,59 +135,48 @@
   justify-content: center;
 
   padding: 0;
-  transition: background 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.altaric-icon-button:hover {
-  background: rgba(45, 212, 191, 0.1);
+.altaric-icon-button:hover,
+.altaric-voice-button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  /* Subtle highlight */
+  color: #e2e8f0;
 }
 
-.altaric-icon-button:disabled {
+.altaric-icon-button:active,
+.altaric-voice-button:active {
+  transform: scale(0.92);
+}
+
+.altaric-icon-button:disabled,
+.altaric-voice-button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
 
-/* =========================
-   Voice button
-   ========================= */
-.altaric-voice-button {
-  background: transparent;
-  border: none;
-  color: #94a3b8;
-  opacity: 0.8;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px;
-  border-radius: 50%;
-  transition: all 0.2s ease;
-}
-
-.altaric-voice-button:hover {
-  color: #e2e8f0;
-  background: rgba(255, 255, 255, 0.05);
-}
-
+/* Voice specific active class */
 .altaric-voice-button.listening {
-  opacity: 1;
   color: #ef4444;
-  /* Standard recording red */
-  background: rgba(239, 68, 68, 0.1);
+  background: rgba(239, 68, 68, 0.15);
   animation: pulse-mic 1.5s infinite;
 }
 
 @keyframes pulse-mic {
   0% {
     transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
   }
 
-  50% {
-    transform: scale(1.1);
+  70% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
   }
 
   100% {
     transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
   }
 }
 
@@ -167,35 +184,93 @@
    Send button
    ========================= */
 .altaric-send-button {
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  /* Circle looks incredibly sleek for single icons */
+  margin-bottom: 4px;
+  /* Fine-tune layout */
 
-  background: linear-gradient(135deg, #00e5c9, #1a8cff);
+  background: rgba(255, 255, 255, 0.05);
   border: none;
 
-  color: #001412;
-  font-size: 18px;
-  font-weight: 600;
+  color: #64748b;
+  /* Dim by default */
   cursor: pointer;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Dynamically illuminate the send button when the user actually types something */
+.altaric-send-button.active {
+  background: rgba(255, 255, 255, 0.15);
+  /* Classy, subtle white */
+  color: #fff;
+  /* Bright icon */
+  box-shadow: 0 4px 14px rgba(255, 255, 255, 0.1);
+}
+
+.altaric-send-button.active:hover {
+  background: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 6px 20px rgba(255, 255, 255, 0.15);
+}
+
+.altaric-send-button.active:active {
+  transform: scale(0.95);
 }
 
 .altaric-send-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  transform: none;
 }
 
 /* =========================
    File pill
    ========================= */
 .altaric-file-pill {
-  margin-top: 8px;
-  font-size: 12px;
-  opacity: 0.8;
+  position: absolute;
+  top: -46px;
+  /* Let it hover beautifully above the pill */
+  left: 24px;
+  padding: 8px 16px;
+  border-radius: 20px;
+
+  background: rgba(15, 23, 32, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  /* Smooth entrance animation */
+  animation: slideUp 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .altaric-file-pill.uploading {
-  color: #7dd3fc;
+  color: #38bdf8;
 }
 
 .altaric-file-pill.done {
@@ -203,7 +278,7 @@
 }
 
 .altaric-file-pill.error {
-  color: #f59e0b;
+  color: #ef4444;
 }
 
 /* =========================
