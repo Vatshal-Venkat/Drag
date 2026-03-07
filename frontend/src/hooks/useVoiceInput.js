@@ -1,9 +1,17 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 
 export function useVoiceInput({ onResult, onEnd }) {
   const recognitionRef = useRef(null);
   const [supported, setSupported] = useState(true);
   const [listening, setListening] = useState(false);
+
+  const onResultRef = useRef(onResult);
+  const onEndRef = useRef(onEnd);
+
+  useEffect(() => {
+    onResultRef.current = onResult;
+    onEndRef.current = onEnd;
+  }, [onResult, onEnd]);
 
   useEffect(() => {
     const SpeechRecognition =
@@ -16,35 +24,54 @@ export function useVoiceInput({ onResult, onEnd }) {
 
     const recognition = new SpeechRecognition();
     recognition.lang = "en-US";
+    // We only want final results to prevent duplicates being appended
+    // incrementally during speech.
     recognition.continuous = false;
-    recognition.interimResults = true;
+    recognition.interimResults = false;
 
     recognition.onstart = () => setListening(true);
 
     recognition.onend = () => {
       setListening(false);
-      onEnd?.();
+      onEndRef.current?.();
     };
 
     recognition.onresult = (event) => {
       let transcript = "";
       for (let i = event.resultIndex; i < event.results.length; i++) {
+        // Collect results
         transcript += event.results[i][0].transcript;
       }
-      onResult(transcript);
+      onResultRef.current?.(transcript);
     };
 
     recognitionRef.current = recognition;
-  }, [onResult, onEnd]);
 
-  const start = () => {
+    return () => {
+      try {
+        recognition.stop();
+      } catch (e) {
+        // Ignore if already stopped
+      }
+    };
+  }, []);
+
+  const start = useCallback(() => {
     if (!recognitionRef.current) return;
-    recognitionRef.current.start();
-  };
+    try {
+      recognitionRef.current.start();
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
 
-  const stop = () => {
-    recognitionRef.current?.stop();
-  };
+  const stop = useCallback(() => {
+    try {
+      recognitionRef.current?.stop();
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
 
   return {
     supported,
@@ -53,3 +80,4 @@ export function useVoiceInput({ onResult, onEnd }) {
     stop,
   };
 }
+
