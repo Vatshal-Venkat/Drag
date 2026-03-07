@@ -60,8 +60,8 @@
    ========================= */
 .altaric-glass {
   display: flex;
-  align-items: flex-end;
-  /* Using flex-end keeps buttons anchored at the bottom as text grows */
+  align-items: center;
+  /* Center all items vertically */
   gap: 12px;
   padding: 8px 16px;
   border-radius: 31px;
@@ -96,8 +96,8 @@
   font-family: inherit;
   font-weight: 400;
 
-  /* Perfect vertical centering trick for auto-growing flex-end textareas */
-  padding: 12px 4px;
+  /* Balanced vertical padding */
+  padding: 8px 4px;
   margin: 0;
   line-height: 1.5;
 
@@ -124,8 +124,6 @@
 
   width: 44px;
   height: 44px;
-  margin-bottom: 2px;
-  /* Fine-tune bottom alignment with text baseline */
 
   color: #94a3b8;
   cursor: pointer;
@@ -188,8 +186,6 @@
   height: 40px;
   border-radius: 50%;
   /* Circle looks incredibly sleek for single icons */
-  margin-bottom: 4px;
-  /* Fine-tune layout */
 
   background: rgba(255, 255, 255, 0.05);
   border: none;
