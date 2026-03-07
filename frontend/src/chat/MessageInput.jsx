@@ -181,7 +181,7 @@ export default function MessageInput({ hasMessages }) {
             <textarea
               ref={textareaRef}
               value={text}
-              placeholder="Ask ECHO AI"
+              placeholder="Ask me..."
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {

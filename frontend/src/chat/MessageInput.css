@@ -44,11 +44,28 @@
   transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-/* On focus, light up exactly the 1px border ring with a sophisticated gradient color. No filling the box. */
+/* On focus, light up exactly the 1px border ring with an animated gradient color. No filling the box. */
 .altaric-gradient-border:focus-within {
-  background: linear-gradient(110deg, #00e5c9, #1a8cff);
+  /* A seamless repeating gradient with slow moving cyan and deep blue */
+  background: linear-gradient(90deg, #00e5c9, #0ea5e9, #1e3a8a, #0ea5e9, #00e5c9);
+  background-size: 250% 100%;
+  animation: borderGradientFlow 5s ease-in-out infinite;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
   transform: translateY(-1px);
+}
+
+@keyframes borderGradientFlow {
+  0% {
+    background-position: 0% 0;
+  }
+
+  50% {
+    background-position: 100% 0;
+  }
+
+  100% {
+    background-position: 0% 0;
+  }
 }
 
 .altaric-border-error {
