@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import SourceCitations from "../components/SourceCitations";
 import { useChatStore } from "../store/chatStore";
+import { useRagStream } from "../hooks/useRagStream";
 
 /* ================================
    Utilities
@@ -132,6 +133,13 @@ export default function MessageRow({
   const [searchDismissed, setSearchDismissed] = useState(false);
 
   const sendUserMessage = useChatStore((s) => s.sendUserMessage);
+  const updateLastAssistant = useChatStore((s) => s.updateLastAssistant);
+  const stopLoading = useChatStore((s) => s.stopLoading);
+  const compareMode = useChatStore((s) => s.compareMode);
+  const selectedDocuments = useChatStore((s) => s.selectedDocuments);
+  const lastActiveDocument = useChatStore((s) => s.lastActiveDocument);
+  
+  const rag = useRagStream();
 
   const sectionRefs = useRef({});
 
@@ -370,9 +378,18 @@ export default function MessageRow({
               <div style={{ ...styles.webSearchPrompt, marginBottom: "16px" }}>
                 <button
                   style={styles.btnYes}
-                  onClick={() => {
+                  onClick={async () => {
                     setSearchDismissed(true);
-                    sendUserMessage("Yes, please search the web.");
+                    await sendUserMessage("Yes, please search the web.");
+                    await rag.ask({
+                      question: "Yes, please search the web.",
+                      compareMode,
+                      documentIds: compareMode ? selectedDocuments : null,
+                      documentId: !compareMode ? lastActiveDocument : null,
+                      onToken: (content) => updateLastAssistant((m) => { if (m) m.content = content; }),
+                      onSkip: stopLoading,
+                      onDone: stopLoading,
+                    });
                   }}
                 >
                   Yes
