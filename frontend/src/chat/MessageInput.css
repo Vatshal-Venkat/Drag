@@ -113,8 +113,9 @@
   font-family: inherit;
   font-weight: 400;
 
-  /* Balanced vertical padding */
-  padding: 8px 4px;
+  /* Balanced vertical padding to exactly center text with the buttons */
+  padding: 12px 4px 4px 4px;
+  /* Push text down by 4px */
   margin: 0;
   line-height: 1.5;
 
