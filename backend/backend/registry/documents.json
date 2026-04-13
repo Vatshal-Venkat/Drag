@@ -108,5 +108,25 @@
     "document_id": "VID20250225165300.mp4",
     "pages": 1,
     "chunks": 1
+  },
+  "Venkat_Vatshal_TCS_Resume.pdf": {
+    "document_id": "Venkat_Vatshal_TCS_Resume.pdf",
+    "pages": 2,
+    "chunks": 3
+  },
+  "IMG_6890.MOV": {
+    "document_id": "IMG_6890.MOV",
+    "pages": 9,
+    "chunks": 9
+  },
+  "CN SYLLABUS R22.pdf": {
+    "document_id": "CN SYLLABUS R22.pdf",
+    "pages": 2,
+    "chunks": 6
+  },
+  "CSME_Conference.pdf": {
+    "document_id": "CSME_Conference.pdf",
+    "pages": 7,
+    "chunks": 34
   }
 }
