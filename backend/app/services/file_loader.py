@@ -20,8 +20,9 @@ def _get_genai_client():
 
 def extract_media_with_gemini(file_path: str, mime_type: str, filename: str) -> List[Dict]:
     """
-    Uses Gemini 2.5 Flash to extract a comprehensive text description/transcript 
-    from images, audio, or video files.
+    Uses Gemini 1.5 Pro to extract a comprehensive text description/transcript 
+    from images, audio, or video files. Handles images differently from video/audio
+    for optimal RAG ingestion.
     """
     client = _get_genai_client()
     
@@ -38,25 +39,41 @@ def extract_media_with_gemini(file_path: str, mime_type: str, filename: str) -> 
         client.files.delete(name=uploaded_file.name)
         raise RuntimeError("Google Gemini failed to process the uploaded media file.")
     
-    prompt = (
-        "You are an expert data extractor for a Retrieval-Augmented Generation (RAG) system. "
-        "Analyze this file comprehensively. "
-        "If it's an image, describe all visual elements, text (OCR), charts, and context in extreme detail. "
-        "If it's audio/video, break the media down into a sequence of scenes or chronological segments. "
-        "For each segment, provide a detailed description of the visual action and a full accurate transcript of the audio. "
-        "You MUST output exactly valid JSON in the following format: "
-        '[{"timestamp": "00:00-00:30", "text": "Detailed description and transcript here..."}, ...]'
-    )
+    if mime_type.startswith("image/"):
+        prompt = (
+            "You are an expert image analyst and explainer for a Retrieval-Augmented Generation (RAG) system. "
+            "Analyze this image comprehensively and explain it in extreme detail. Include: "
+            "1. The main subject and overall context. "
+            "2. A complete transcript of any text present (OCR). "
+            "3. Important visual elements, colors, and spatial layout. "
+            "4. Detailed data points if it contains charts, graphs, or diagrams. "
+            "5. A conceptual explanation of what the image represents or its likely purpose. "
+            "You MUST output exactly valid JSON in the following format: "
+            '[{"timestamp": "Image", "text": "Detailed explanation and OCR here..."}]'
+        )
+    else: # Video or Audio
+        prompt = (
+            "You are an expert video and audio analyst for a Retrieval-Augmented Generation (RAG) system. "
+            "Analyze this media comprehensively and break it down into a chronological sequence of scenes or segments. "
+            "For each segment, provide: "
+            "1. A highly detailed description of all visual actions, objects, scene changes, and on-screen text (if applicable). "
+            "2. A complete and accurate transcript of the spoken audio. "
+            "You MUST output exactly valid JSON in the following format: "
+            '[{"timestamp": "00:00-00:30", "text": "Visuals: [Detailed visual description]\\nTranscript: [Spoken words]"}, ...]'
+        )
     
     try:
+        # Using gemini-1.5-pro for exceptionally good video tracking and image OCR/reasoning
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-1.5-pro',
             contents=[uploaded_file, prompt],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
             )
         )
         text = response.text.strip()
+    except Exception as e:
+        raise RuntimeError(f"Failed to generate content with Gemini API: {str(e)}")
     finally:
         # Always clean up the file from Gemini's storage
         client.files.delete(name=uploaded_file.name)
