@@ -15,4 +15,11 @@ The platform is built on a modern, decoupled architecture allowing for high scal
 - **Section-Aligned Comparative Analysis:** A specialized operational loop allows users to perform strict, structured comparisons across multiple uploaded documents, highlighting similarities, discrepancies, and conflicting data points between disparate knowledge bases.
 - **Internet Fallback Engine:** Utilizing a seamless integration with `duckduckgo-search`, the platform can autonomously fall back to real-time web querying when internal document repositories lack sufficient context to confidently resolve a user's prompt.
 
+
 The Drag RAG system ultimately accelerates knowledge discovery cycles from hours to seconds. By eliminating the friction of manual document sifting and ensuring concrete source accuracy, it enables professionals in research, legal, compliance, and enterprise operations to make faster, evidence-based decisions. The platform's extensible MCP framework and modular design guarantee that as an organization's intelligence requirements scale, the system can adapt dynamically without underlying architectural overhauls, cementing Drag inherently as an enterprise-grade AI foundation.
+
+### Agentic Sub-Agent Architecture
+
+The only conceptual difference is that we are dynamically instantiating tools rather than spinning up literal sandboxed sub-agents on individual pods for the Search Engine and Local Data. This means our system is arguably faster and more cohesive because the Aggregator acts as the brain computing the sub-functions dynamically.
+
+Conclusion: We are already there. You have successfully engineered the core framework depicted in the graphic.

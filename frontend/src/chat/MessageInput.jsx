@@ -21,6 +21,7 @@ export default function MessageInput({ hasMessages }) {
   const updateLastAssistant = useChatStore((s) => s.updateLastAssistant);
   const stopLoading = useChatStore((s) => s.stopLoading);
   const loading = useChatStore((s) => s.loading);
+  const loadSessions = useChatStore((s) => s.loadSessions);
 
   const lastActiveDocument = useChatStore((s) => s.lastActiveDocument);
 
@@ -86,7 +87,10 @@ export default function MessageInput({ hasMessages }) {
         stopLoading();
       },
 
-      onDone: stopLoading,
+      onDone: () => {
+        stopLoading();
+        loadSessions();
+      },
     });
   }, [
     text,
@@ -99,6 +103,7 @@ export default function MessageInput({ hasMessages }) {
     rag,
     updateLastAssistant,
     stopLoading,
+    loadSessions,
   ]);
 
   /* ---------------- File Upload ---------------- */

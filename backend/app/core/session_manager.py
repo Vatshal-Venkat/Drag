@@ -81,6 +81,16 @@ class SessionManager:
 
         memory.add_message(role, content)
         session["updated_at"] = datetime.utcnow()
+        
+        # Automatically set a compressed title on the first user message
+        if role == "user" and session.get("title") == "New Chat":
+            clean_text = content.strip().split("\n")[0]
+            words = clean_text.split()
+            if len(words) > 4:
+                title = " ".join(words[:4]) + "..."
+            else:
+                title = clean_text[:28] + ("..." if len(clean_text) > 28 else "")
+            session["title"] = title
 
     def get_recent_messages(self, session_id: str, limit: int = 10):
         session = self.get_session(session_id)
