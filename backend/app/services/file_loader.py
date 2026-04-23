@@ -32,7 +32,8 @@ def extract_media_with_gemini(file_path: str, mime_type: str, filename: str) -> 
     
     # Wait for the file to finish processing by Google's backend before we query it
     while uploaded_file.state.name == "PROCESSING":
-        time.sleep(2)
+        # Video processing can take minutes; sleep 10s to prevent HTTP 429 Quota Exceeded on the get() call
+        time.sleep(10)
         uploaded_file = client.files.get(name=uploaded_file.name)
         
     if uploaded_file.state.name == "FAILED":
@@ -63,9 +64,9 @@ def extract_media_with_gemini(file_path: str, mime_type: str, filename: str) -> 
         )
     
     try:
-        # Using gemini-1.5-pro for exceptionally good video tracking and image OCR/reasoning
+        # Using gemini-3.1-pro-preview for exceptionally good video tracking and image OCR/reasoning
         response = client.models.generate_content(
-            model='gemini-1.5-pro',
+            model='gemini-3.1-pro-preview',
             contents=[uploaded_file, prompt],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -217,7 +218,8 @@ async def extract_text_from_file(file: UploadFile) -> List[Dict]:
             temp_path = temp_file.name
             
         try:
-            documents = extract_media_with_gemini(temp_path, mime_type, filename)
+            import asyncio
+            documents = await asyncio.to_thread(extract_media_with_gemini, temp_path, mime_type, filename)
             return documents
         finally:
             os.remove(temp_path)

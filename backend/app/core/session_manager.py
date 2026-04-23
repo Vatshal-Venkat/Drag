@@ -32,8 +32,9 @@ class SessionManager:
     # SESSION LIFECYCLE
     # ==================================================
 
-    def create_session(self) -> Dict:
-        session_id = str(uuid4())
+    def create_session(self, session_id: str = None) -> Dict:
+        if not session_id:
+            session_id = str(uuid4())
         now = datetime.utcnow()
 
         session = {

@@ -22,7 +22,8 @@ async def ingest_file(
     # --------------------------------------------------
     session = session_manager.get_session(session_id)
     if not session:
-        raise HTTPException(status_code=400, detail="Invalid session_id")
+        # Rehydrate the session dynamically if the backend reset
+        session = session_manager.create_session(session_id=session_id)
 
     # --------------------------------------------------
     # 1. Extract Text
