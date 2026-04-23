@@ -150,7 +150,7 @@ export default function MessageInput({ hasMessages }) {
             <input
               ref={fileRef}
               type="file"
-              accept=".pdf,.doc,.docx"
+              accept=".pdf,.doc,.docx,image/*,video/*,audio/*,.pptx,.xlsx"
               hidden
               onChange={(e) =>
                 uploadFile(e.target.files[0])

@@ -46,7 +46,7 @@ export default function FileIngest() {
       <input
         ref={fileInputRef}
         type="file"
-        accept=".pdf,.doc,.docx"
+        accept=".pdf,.doc,.docx,image/*,video/*,audio/*,.pptx,.xlsx"
         style={{ display: "none" }}
         onChange={(e) => setFile(e.target.files[0])}
       />

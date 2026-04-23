@@ -204,6 +204,12 @@ async def extract_text_from_file(file: UploadFile) -> List[Dict]:
         
     # -------- MULTIMEDIA (Images, Audio, Video) --------
     mime_type = file.content_type
+    if not mime_type or mime_type == "application/octet-stream":
+        import mimetypes
+        guessed_type, _ = mimetypes.guess_type(filename)
+        if guessed_type:
+            mime_type = guessed_type
+
     if mime_type and (mime_type.startswith("image/") or mime_type.startswith("audio/") or mime_type.startswith("video/")):
         # Write to a temporary file because Gemini File API requires a file path
         with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(filename)[1]) as temp_file:
