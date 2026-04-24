@@ -64,9 +64,9 @@ def extract_media_with_gemini(file_path: str, mime_type: str, filename: str) -> 
         )
     
     try:
-        # Using gemini-3.1-pro-preview for exceptionally good video tracking and image OCR/reasoning
+        # Using gemini-2.5-flash for video tracking and image OCR/reasoning
         response = client.models.generate_content(
-            model='gemini-3.1-pro-preview',
+            model='gemini-2.5-flash',
             contents=[uploaded_file, prompt],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
