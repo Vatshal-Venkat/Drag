@@ -96,10 +96,14 @@ def _stream_llm(
     system_prompt: Optional[str] = None,
 ) -> Iterator[str]:
 
+    import datetime
+    current_date = datetime.datetime.now().strftime("%Y-%m-%d")
+    final_sys = (system_prompt or BASE_SYSTEM_PROMPT) + f"\n\n[SYSTEM INJECTION] The current date is {current_date}."
+
     messages = [
         {
             "role": "system",
-            "content": system_prompt or BASE_SYSTEM_PROMPT,
+            "content": final_sys,
         },
         {
             "role": "user",
@@ -262,10 +266,14 @@ def generate_answer(
     system_prompt: Optional[str] = None,
 ) -> str:
 
+    import datetime
+    current_date = datetime.datetime.now().strftime("%Y-%m-%d")
+    final_sys = (system_prompt or BASE_SYSTEM_PROMPT) + f"\n\n[SYSTEM INJECTION] The current date is {current_date}."
+
     messages = [
         {
             "role": "system",
-            "content": system_prompt or BASE_SYSTEM_PROMPT,
+            "content": final_sys,
         },
         {
             "role": "user",
