@@ -127,6 +127,13 @@ Return a JSON plan with this schema:
     try:
         plan = json.loads(raw_output)
         assert "actions" in plan
+        
+        # Force 'retrieve' if we have active documents but LLM forgot it
+        if active_docs:
+            action_names = [a["name"] for a in plan["actions"]]
+            if "retrieve" not in action_names:
+                plan["actions"].insert(0, {"name": "retrieve", "params": {}})
+                
     except Exception:
         plan = {
             "actions": [
