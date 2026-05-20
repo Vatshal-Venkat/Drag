@@ -64,7 +64,7 @@ def extract_media_with_gemini(file_path: str, mime_type: str, filename: str) -> 
         )
     
     try:
-        # Using gemini-2.5-flash for video tracking and image OCR/reasoning
+        # Using gemini-2.5-flash for reliable video tracking and image OCR/reasoning
         response = client.models.generate_content(
             model='gemini-2.5-flash',
             contents=[uploaded_file, prompt],
@@ -143,6 +143,20 @@ async def extract_text_from_file(file: UploadFile) -> List[Dict]:
                 "source": filename,
             })
 
+        return documents
+
+    # -------- TXT / MD --------
+    if lower.endswith(".txt") or lower.endswith(".md"):
+        try:
+            text = content.decode("utf-8").strip()
+            if text:
+                documents.append({
+                    "text": text,
+                    "page": 1,
+                    "source": filename,
+                })
+        except UnicodeDecodeError:
+            raise ValueError("Failed to decode text file. Ensure it is UTF-8 encoded.")
         return documents
 
     # -------- DOCX --------
