@@ -9,6 +9,8 @@ const MAX_TEXTAREA_HEIGHT = 140;
 export default function MessageInput({ hasMessages }) {
   const [text, setText] = useState("");
   const [fileState, setFileState] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [elapsedTime, setElapsedTime] = useState(0);
 
   const compareMode = useChatStore((s) => s.compareMode);
   const selectedDocuments = useChatStore((s) => s.selectedDocuments);
@@ -29,6 +31,13 @@ export default function MessageInput({ hasMessages }) {
 
   const textareaRef = useRef(null);
   const fileRef = useRef(null);
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, []);
 
   const {
     supported: voiceSupported,
@@ -114,6 +123,21 @@ export default function MessageInput({ hasMessages }) {
     const sessionId = await ensureSession();
 
     setFileState({ name: file.name, status: "uploading" });
+    setUploadProgress(0);
+    setElapsedTime(0);
+
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    const startTime = Date.now();
+    timerRef.current = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      setElapsedTime(elapsed);
+      
+      setUploadProgress(prev => {
+        if (prev >= 95) return 95;
+        return prev + (95 - prev) * 0.05;
+      });
+    }, 1000);
 
     const formData = new FormData();
     formData.append("session_id", sessionId);
@@ -134,9 +158,12 @@ export default function MessageInput({ hasMessages }) {
       registerDocument(data.document_id);
       setLastActiveDocument(data.document_id);
 
+      if (timerRef.current) clearInterval(timerRef.current);
+      setUploadProgress(100);
       setFileState({ name: file.name, status: "done" });
     } catch (err) {
       console.error("Upload failed:", err);
+      if (timerRef.current) clearInterval(timerRef.current);
       setFileState({ name: file.name, status: "error" });
     }
   };
@@ -247,10 +274,20 @@ export default function MessageInput({ hasMessages }) {
 
         {fileState && (
           <div className={`altaric-file-pill ${fileState.status}`}>
-            {fileState.name}
-            {fileState.status === "uploading" && " · uploading"}
-            {fileState.status === "done" && " ✓"}
-            {fileState.status === "error" && " ⚠"}
+            <div className="altaric-file-pill-content">
+              {fileState.name}
+              {fileState.status === "uploading" && ` · uploading (${elapsedTime}s)`}
+              {fileState.status === "done" && " ✓"}
+              {fileState.status === "error" && " ⚠"}
+            </div>
+            {fileState.status === "uploading" && (
+              <div className="altaric-file-progress-bar">
+                <div 
+                  className="altaric-file-progress-fill" 
+                  style={{ width: `${Math.round(uploadProgress)}%` }} 
+                />
+              </div>
+            )}
           </div>
         )}
       </div>
