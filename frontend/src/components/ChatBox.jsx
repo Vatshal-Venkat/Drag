@@ -5,6 +5,7 @@ import Message from "./Message";
 import SourceCitations from "./SourceCitations";
 import FileIngest from "./FileIngest";
 import BackgroundGrid from "./BackgroundGrid";
+import { API_BASE } from "../config/api";
 
 export default function ChatBox() {
   const [messages, setMessages] = useState([]);
@@ -47,7 +48,7 @@ export default function ChatBox() {
     abortControllerRef.current = new AbortController();
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/query/stream", {
+      const res = await fetch(`${API_BASE}/query/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -1,7 +1,10 @@
 from typing import List
 import os
+import logging
 from google import genai
 from google.genai import types  # Import types for configuration
+
+logger = logging.getLogger(__name__)
 
 # ==================================================
 # EMBEDDING CONFIG
@@ -63,10 +66,9 @@ def embed_texts(texts: List[str]) -> List[List[float]]:
 
         return all_embeddings
 
-    except Exception:
-        # 🔹 HARD FAIL-SAFE
-        # Never crash ingestion or retrieval
-        return [[0.0] * EMBED_DIM for _ in texts]
+    except Exception as e:
+        logger.error(f"Embedding generation failed: {e}", exc_info=True)
+        raise
 
 
 def embed_query(query: str) -> List[float]:
@@ -94,6 +96,6 @@ def embed_query(query: str) -> List[float]:
 
         return response.embeddings[0].values
 
-    except Exception:
-        # 🔹 HARD FAIL-SAFE
-        return [0.0] * EMBED_DIM
+    except Exception as e:
+        logger.error(f"Query embedding generation failed: {e}", exc_info=True)
+        raise

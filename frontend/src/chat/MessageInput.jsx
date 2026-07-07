@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { useChatStore } from "../store/chatStore";
 import { useVoiceInput } from "../hooks/useVoiceInput";
 import { useRagStream } from "../hooks/useRagStream";
+import { API_BASE } from "../config/api";
 import "./MessageInput.css";
 
 const MAX_TEXTAREA_HEIGHT = 140;
@@ -145,7 +146,7 @@ export default function MessageInput({ hasMessages }) {
 
     try {
       const res = await fetch(
-        "http://127.0.0.1:8000/ingest/file",
+        `${API_BASE}/ingest/file`,
         {
           method: "POST",
           body: formData,

@@ -135,18 +135,50 @@ def retrieve_context(
 
     store = get_store_for_document(document_id)
     query_embedding = embed_query(query)
+    query_tokens = query.lower().split()
 
-    results = store.search(query_embedding, k=top_k)
+    semantic_hits = store.search(query_embedding, k=top_k)
+    if not semantic_hits:
+        return []
+
+    bm25 = get_bm25_for_store(store)
+    bm25_scores = bm25.get_scores(query_tokens)
+    max_bm25 = float(bm25_scores.max()) if len(bm25_scores) > 0 else 1.0
+
+    if _is_conceptual_query(query):
+        semantic_weight = SEMANTIC_WEIGHT_CONCEPTUAL
+        bm25_weight = BM25_WEIGHT_CONCEPTUAL
+    else:
+        semantic_weight = SEMANTIC_WEIGHT_FACTUAL
+        bm25_weight = BM25_WEIGHT_FACTUAL
 
     contexts: List[Dict] = []
 
-    for r in results:
+    for hit in semantic_hits:
+        idx = hit["id"]
+
+        bm25_score = (
+            bm25_scores[idx] / max_bm25
+            if idx < len(bm25_scores) and max_bm25 > 0.0
+            else 0.0
+        )
+
+        final_score = (
+            semantic_weight * hit.get("confidence", 0.0)
+            + bm25_weight * bm25_score
+        )
+
+        if "skill" in query.lower():
+            if "skill" in hit.get("text", "").lower():
+                final_score += 0.2
+
         context = {
-            "id": r.get("id"),
-            "text": r.get("text", ""),
-            "source": r.get("source", "unknown"),
-            "page": r.get("page"),
-            "confidence": r.get("confidence", 0.0),
+            "id": hit.get("id"),
+            "text": hit.get("text", ""),
+            "source": hit.get("source", "unknown"),
+            "page": hit.get("page"),
+            "confidence": hit.get("confidence", 0.0),
+            "final_score": round(final_score, 4),
             "document_id": document_id,
             "agent": "retrieval_agent",
         }
@@ -154,6 +186,7 @@ def retrieve_context(
         if context["text"]:
             contexts.append(context)
 
+    contexts.sort(key=lambda x: x["final_score"], reverse=True)
     return contexts
 
 
@@ -244,7 +277,7 @@ def retrieve(
 
             bm25_score = (
                 bm25_scores[idx] / max_bm25
-                if idx < len(bm25_scores)
+                if idx < len(bm25_scores) and max_bm25 > 0.0
                 else 0.0
             )
 
