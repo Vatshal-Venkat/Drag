@@ -1,0 +1,206 @@
+# 📊 RAG Evaluation Architecture & Methodology: Drag Platform
+
+This document outlines the evaluation framework integrated into **Drag**, an enterprise-grade Retrieval-Augmented Generation (RAG) platform. It covers **Retrieval Evaluation Metrics**, **Generation & Reasoning Metrics** (including Chain of Thought), **REST API Endpoints**, and an in-depth explanation of **which metrics Drag uses and why**.
+
+---
+
+## 1. Executive Summary
+
+Evaluation in RAG systems requires assessing two distinct phases:
+1. **Retrieval Phase**: Did the retrieval engine (Hybrid FAISS + BM25) locate the right context chunks from unstructured documents and place them in top positions?
+2. **Generation & Reasoning Phase**: Did the LLM synthesize an answer that is faithful to the retrieved context, relevant to the user's prompt, factually accurate, and logically sound in its reasoning trace?
+
+Drag incorporates a unified evaluation module (`app.evaluation`) providing deterministic mathematical algorithms for retrieval metrics, LLM/heuristic evaluation for generation, and an automated evaluator engine for end-to-end benchmarking.
+
+---
+
+## 2. Retrieval Evaluation Methods
+
+Retrieval evaluation measures the accuracy, completeness, and ranking efficiency of context chunks retrieved for a given prompt.
+
+### 2.1 Precision@K
+* **Definition**: The proportion of retrieved items in the top-$K$ results that are relevant to the user query.
+* **Mathematical Formula**:
+  $$\text{Precision@K} = \frac{|\text{Retrieved}_K \cap \text{Relevant}|}{K}$$
+* **Python Usage**:
+  ```python
+  from app.evaluation.retrieval_metrics import calculate_precision
+
+  p5 = calculate_precision(
+      retrieved_ids=["doc_1", "doc_2", "doc_3", "doc_4", "doc_5"],
+      relevant_ids={"doc_1", "doc_3"},
+      k=5
+  )  # Output: 0.4
+  ```
+
+---
+
+### 2.2 Recall@K
+* **Definition**: The proportion of total ground-truth relevant items that are successfully retrieved within the top-$K$ results.
+* **Mathematical Formula**:
+  $$\text{Recall@K} = \frac{|\text{Retrieved}_K \cap \text{Relevant}|}{|\text{Relevant}|}$$
+* **Python Usage**:
+  ```python
+  from app.evaluation.retrieval_metrics import calculate_recall
+
+  r5 = calculate_recall(
+      retrieved_ids=["doc_1", "doc_2", "doc_3"],
+      relevant_ids={"doc_1", "doc_3", "doc_7", "doc_9"},
+      k=3
+  )  # Output: 0.5 (2 out of 4 relevant retrieved)
+  ```
+
+---
+
+### 2.3 Hit Rate@K (Success Rate)
+* **Definition**: A binary metric ($1.0$ or $0.0$) indicating whether *at least one* ground-truth relevant chunk is present in the top-$K$ retrieved results. Across a dataset of queries, the average Hit Rate represents the percentage of queries for which retrieval succeeded.
+* **Mathematical Formula**:
+  $$\text{Hit Rate@K} = \begin{cases} 1.0 & \text{if } |\text{Retrieved}_K \cap \text{Relevant}| > 0 \\ 0.0 & \text{otherwise} \end{cases}$$
+* **Python Usage**:
+  ```python
+  from app.evaluation.retrieval_metrics import calculate_hit_rate
+
+  hr = calculate_hit_rate(
+      retrieved_ids=["doc_4", "doc_1", "doc_8"],
+      relevant_ids={"doc_1"},
+      k=3
+  )  # Output: 1.0
+  ```
+
+---
+
+### 2.4 Mean Reciprocal Rank (MRR@K) / Mean Reciprocal Reranking
+* **Definition**: Evaluates the rank position of the *first* relevant chunk retrieved in top-$K$. For a single query, Reciprocal Rank (RR) is $1/\text{rank}$. MRR is the mean RR across all benchmark queries.
+* **Mathematical Formula**:
+  $$\text{RR@K} = \frac{1}{\text{rank of 1st relevant item in top-K}} \quad (\text{or } 0.0 \text{ if no match})$$
+  $$\text{MRR@K} = \frac{1}{|Q|} \sum_{i=1}^{|Q|} \text{RR}_i@K$$
+* **Python Usage**:
+  ```python
+  from app.evaluation.retrieval_metrics import calculate_mrr
+
+  # Relevant document doc_1 is at rank index 2 -> RR = 1/2 = 0.5
+  mrr = calculate_mrr(
+      retrieved_ids=["doc_99", "doc_1", "doc_5"],
+      relevant_ids={"doc_1"},
+      k=3
+  )  # Output: 0.5
+  ```
+
+---
+
+### 2.5 Normalized Discounted Cumulative Gain (NDCG@K) / Normalized Discrimated Cumulative Gain
+* **Definition**: Measures ranking quality with graded relevance scores (e.g., $0$ = irrelevant, $1$ = relevant, $2$ = highly relevant). It discounts items lower down in the ranked list using a logarithmic penalty.
+* **Mathematical Formula**:
+  $$\text{DCG@K} = \sum_{i=1}^K \frac{2^{\text{rel}_i} - 1}{\log_2(i + 1)}$$
+  $$\text{IDCG@K} = \text{Ideal DCG@K (relevance scores sorted descending)}$$
+  $$\text{NDCG@K} = \frac{\text{DCG@K}}{\text{IDCG@K}}$$
+* **Python Usage**:
+  ```python
+  from app.evaluation.retrieval_metrics import calculate_ndcg
+
+  graded_scores = {"doc_1": 3.0, "doc_2": 2.0, "doc_3": 1.0}
+  ndcg = calculate_ndcg(
+      retrieved_ids=["doc_1", "doc_2", "doc_3"],
+      relevance_scores=graded_scores,
+      k=3
+  )  # Output: 1.0 (perfect ranking)
+  ```
+
+---
+
+## 3. Generation & Reasoning Evaluation Methods
+
+Generation evaluation measures the quality of the response generated by the LLM (Groq / Google GenAI) based on the retrieved context.
+
+### 3.1 Faithfulness (Groundedness)
+* **Definition**: Measures whether all claims and facts in the generated answer are supported strictly by the retrieved contexts, ensuring zero hallucinations.
+* **Score Range**: $0.0$ to $1.0$.
+
+### 3.2 Answer Relevancy
+* **Definition**: Measures how directly and concisely the generated answer addresses the user's prompt without adding irrelevant filler.
+* **Score Range**: $0.0$ to $1.0$.
+
+### 3.3 Answer Correctness
+* **Definition**: Measures factual and semantic alignment between the generated answer and a ground-truth reference answer.
+* **Score Range**: $0.0$ to $1.0$.
+
+### 3.4 Chain of Thought (CoT) Quality & Reasoning Verification
+* **Definition**: Evaluates multi-step reasoning traces (`think` or step-by-step logic) for:
+  1. **Structural CoT presence**: Deductive step markers (`step`, `because`, `therefore`).
+  2. **Context grounding of premises**: Ensuring reasoning premises derive from retrieved contexts.
+  3. **Conclusion alignment**: Ensuring final reasoning steps logically match the final output.
+* **Score Range**: $0.0$ to $1.0$.
+
+---
+
+## 4. Which Metrics Drag Uses and Why
+
+### 🎯 Primary Retrieval Metrics Used in Drag: **Hit Rate@K** & **MRR@K**
+
+In **Drag**, our primary production metrics for retrieval evaluation are **Hit Rate@K** and **MRR@K** (with $K=3$ or $K=5$).
+
+#### Why Hit Rate@K?
+1. **Context Window Efficiency & Latency Constraints**:
+   In enterprise RAG systems, sending too many chunks ($K > 10$) increases prompt token costs, degrades generation latency, and risks context crowding. Drag targets $K=3$ to $K=5$.
+2. **Sufficient Context Hypothesis**:
+   For an LLM to generate an accurate answer, it typically needs **at least one** comprehensive context chunk containing the core facts. Hit Rate directly measures: *"Did our hybrid FAISS + BM25 retriever succeed in putting the required knowledge inside the prompt window?"*
+
+#### Why MRR@K (Mean Reciprocal Rank)?
+1. **Mitigating "Lost-in-the-Middle" LLM Vulnerabilities**:
+   Research shows LLMs attend strongest to context placed at the **top** of the prompt (rank 1 and 2). Context placed at lower ranks (e.g., rank 5) is frequently overlooked.
+2. **Measuring Re-Ranking & Ordering Quality**:
+   MRR assigns a heavy reward to rank 1 ($1.0$), rank 2 ($0.5$), rank 3 ($0.33$), punishing lower ranks. High MRR guarantees that our hybrid scoring algorithm (`0.8 * Dense + 0.2 * Sparse`) places the single best source chunk at the top of the context prompt.
+
+---
+
+### 📊 Secondary & Specialized Metrics: **NDCG@K**, **Precision@K**, & **Recall@K**
+
+* **NDCG@K**: Primarily used in **Drag's Section-Aligned Comparative Analysis Mode**. When comparing multiple multi-page documents, different chunks carry varying levels of detail (graded relevance). NDCG@K ensures highly detailed comparative sections rank higher than summary chunks.
+* **Precision@K & Recall@K**: Monitored offline during chunking strategy tuning (e.g., testing chunk size 500 vs 1000 tokens) to ensure chunk granularity balances completeness with noise reduction.
+
+---
+
+### 💡 Primary Generation Metrics Used in Drag: **Faithfulness** & **Answer Relevancy**
+
+* **Faithfulness**: Essential for enterprise compliance and legal document intelligence. Responses with Faithfulness $< 0.85$ are flagged.
+* **Answer Relevancy**: Guarantees fast, direct answers without unnecessary padding.
+* **Chain of Thought Quality**: Used during agentic tool selection and complex multi-document reasoning loops to verify that the intermediate step-by-step logic is grounded before streaming output to the user interface.
+
+---
+
+## 5. Technical Implementation & Architecture
+
+```
+backend/app/evaluation/
+├── __init__.py               # Package exports
+├── retrieval_metrics.py      # Precision, Recall, Hit Rate, MRR, NDCG
+├── generation_metrics.py     # Faithfulness, Relevancy, Correctness, CoT
+├── evaluator.py              # RAGEvaluator unified benchmark class
+```
+
+### 5.1 REST API Reference (`/api/evaluation`)
+
+| Endpoint | Method | Description |
+| :--- | :--- | :--- |
+| `/api/evaluation/retrieval` | `POST` | Computes Precision, Recall, Hit Rate, MRR, NDCG for a single query. |
+| `/api/evaluation/generation` | `POST` | Evaluates Faithfulness, Relevancy, Correctness, and CoT quality. |
+| `/api/evaluation/batch` | `POST` | Runs a full dataset benchmark across all retrieval and generation metrics. |
+
+---
+
+## 6. Verification & Automated Testing
+
+Run unit tests across all evaluation metrics:
+```bash
+cd backend
+python tests/test_evaluation.py
+```
+
+Expected Output:
+```
+..........
+----------------------------------------------------------------------
+Ran 10 tests in 0.006s
+
+OK
+```
