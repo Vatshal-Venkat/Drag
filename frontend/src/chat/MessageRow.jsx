@@ -224,17 +224,37 @@ export default function MessageRow({
     >
       <div
         style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: isUser ? "flex-end" : "flex-start",
           maxWidth: "80%",
-          padding: isUser ? "12px 14px" : 0,
-          background: isUser
-            ? "#1f2933"
-            : "transparent",
-          borderRadius: isUser ? 12 : 0,
-          color: "#e5e7eb",
-          whiteSpace: "pre-wrap",
         }}
       >
-        {/* USER */}
+        <div
+          style={{
+            fontSize: "11px",
+            fontWeight: "600",
+            color: isUser ? "#60a5fa" : "#a78bfa",
+            marginBottom: "6px",
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+          }}
+        >
+          {isUser ? "YOU" : "Assistant"}
+        </div>
+        <div
+          style={{
+            width: "100%",
+            padding: isUser ? "12px 14px" : 0,
+            background: isUser
+              ? "#1f2933"
+              : "transparent",
+            borderRadius: isUser ? 12 : 0,
+            color: "#e5e7eb",
+            whiteSpace: "pre-wrap",
+          }}
+        >
+          {/* USER */}
         {isUser && <div>{parseBoldText(cleanContent)}</div>}
 
         {/* ASSISTANT */}
@@ -436,6 +456,7 @@ export default function MessageRow({
             {timestamp}
           </div>
         )}
+      </div>
       </div>
     </div>
   );
