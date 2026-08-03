@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 # -------------------------
 # Existing API routes
 # -------------------------
-from app.api import ingest, health, query_stream, documents
+from app.api import ingest, health, query_stream, documents, evaluation
 
 # -------------------------
 # Chat routes
@@ -72,6 +72,7 @@ app.include_router(ingest.router)
 # -------------------------
 app.include_router(query_stream.router)
 app.include_router(documents.router)
+app.include_router(evaluation.router)
 
 # -------------------------
 # Chat APIs
