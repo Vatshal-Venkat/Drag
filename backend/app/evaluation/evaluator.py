@@ -3,7 +3,7 @@
 Unified RAG Evaluator for Drag Accelerator.
 Runs end-to-end evaluations combining Retrieval Metrics
 (Precision, Recall, Hit Rate, MRR, NDCG) and Generation/Reasoning Metrics
-(Faithfulness, Relevancy, Correctness, Chain of Thought).
+(Context Relevance, Faithfulness, Relevancy, Correctness, Chain of Thought).
 """
 
 from typing import List, Dict, Any, Optional
@@ -18,11 +18,17 @@ from app.evaluation.retrieval_metrics import (
 from app.evaluation.generation_metrics import evaluate_generation
 
 
+def _mean(values: List[float]) -> Optional[float]:
+    return round(sum(values) / len(values), 4) if values else None
+
+
 class RAGEvaluator:
     """Unified benchmark evaluator for Drag RAG system."""
 
-    def __init__(self, default_k: int = 5):
+    def __init__(self, default_k: int = 5, llm_evaluator: Optional[Any] = None):
         self.default_k = default_k
+        # Optional LLM judge (app.evaluation.llm_judge.LLMJudge); heuristics are used when None
+        self.llm_evaluator = llm_evaluator
 
     def evaluate_sample(
         self,
@@ -55,6 +61,7 @@ class RAGEvaluator:
             retrieved_contexts=retrieved_contexts,
             reference_answer=reference_answer,
             reasoning_trace=reasoning_trace,
+            llm_evaluator=self.llm_evaluator,
         )
 
         return {
@@ -78,10 +85,18 @@ class RAGEvaluator:
 
         sample_evals = []
         retrieval_samples = []
-        gen_triad_scores = []
-        faithfulness_scores = []
-        relevancy_scores = []
-        correctness_scores = []
+        collected: Dict[str, List[float]] = {
+            "rag_triad_score": [],
+            "overall_score": [],
+            "context_relevance": [],
+            "context_precision": [],
+            "faithfulness": [],
+            "answer_relevancy": [],
+            "answer_correctness": [],
+            "chain_of_thought_quality": [],
+        }
+        llm_judged_metrics = 0
+        total_metrics = 0
 
         for sample in dataset:
             res = self.evaluate_sample(
@@ -103,24 +118,24 @@ class RAGEvaluator:
             })
 
             gen = res["generation"]
-            gen_triad_scores.append(gen["rag_triad_score"])
-            faithfulness_scores.append(gen["faithfulness"]["score"])
-            relevancy_scores.append(gen["answer_relevancy"]["score"])
-            if gen.get("answer_correctness"):
-                correctness_scores.append(gen["answer_correctness"]["score"])
+            collected["rag_triad_score"].append(gen["rag_triad_score"])
+            collected["overall_score"].append(gen["overall_score"])
+            collected["context_precision"].append(gen["context_relevance"]["context_precision"])
+            for key in ("context_relevance", "faithfulness", "answer_relevancy",
+                        "answer_correctness", "chain_of_thought_quality"):
+                metric = gen.get(key)
+                if metric:
+                    collected[key].append(metric["score"])
+                    total_metrics += 1
+                    if metric.get("method") == "llm":
+                        llm_judged_metrics += 1
 
         retrieval_summary = evaluate_retrieval_dataset(retrieval_samples, k=k_val)
 
-        generation_summary = {
-            "mean_rag_triad_score": round(sum(gen_triad_scores) / len(gen_triad_scores), 4),
-            "mean_faithfulness": round(sum(faithfulness_scores) / len(faithfulness_scores), 4),
-            "mean_answer_relevancy": round(sum(relevancy_scores) / len(relevancy_scores), 4),
-            "mean_answer_correctness": (
-                round(sum(correctness_scores) / len(correctness_scores), 4)
-                if correctness_scores
-                else None
-            ),
-        }
+        generation_summary = {f"mean_{key}": _mean(values) for key, values in collected.items()}
+        generation_summary["llm_judged_ratio"] = (
+            round(llm_judged_metrics / total_metrics, 4) if total_metrics else 0.0
+        )
 
         return {
             "summary": {

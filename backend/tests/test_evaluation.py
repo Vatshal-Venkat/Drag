@@ -2,6 +2,8 @@ import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+import json
+import tempfile
 import unittest
 from app.evaluation.retrieval_metrics import (
     calculate_precision,
@@ -12,6 +14,7 @@ from app.evaluation.retrieval_metrics import (
     evaluate_retrieval_dataset,
 )
 from app.evaluation.generation_metrics import (
+    calculate_context_relevance,
     calculate_faithfulness,
     calculate_answer_relevancy,
     calculate_answer_correctness,
@@ -19,6 +22,28 @@ from app.evaluation.generation_metrics import (
     evaluate_generation,
 )
 from app.evaluation.evaluator import RAGEvaluator
+from app.evaluation.llm_judge import average_precision
+from app.evaluation import online
+
+
+class StubJudge:
+    """Returns canned judge output keyed by a word in the system prompt."""
+
+    def __init__(self, responses):
+        self.responses = responses
+        self.calls = 0
+
+    def complete_json(self, system, user):
+        self.calls += 1
+        for marker, response in self.responses.items():
+            if marker in system:
+                return response
+        return None
+
+
+class FailingJudge:
+    def complete_json(self, system, user):
+        raise RuntimeError("Groq unavailable")
 
 
 class TestRetrievalMetrics(unittest.TestCase):
@@ -90,6 +115,12 @@ class TestRetrievalMetrics(unittest.TestCase):
         self.assertGreater(ndcg_ideal, ndcg_reversed)
         self.assertGreater(ndcg_reversed, 0.0)
 
+    def test_dataset_ndcg_without_graded_scores(self):
+        # relevance_scores=None must fall back to binary relevance, not zero out NDCG
+        dataset = [{"retrieved_ids": ["a", "b"], "relevant_ids": ["a"], "relevance_scores": None}]
+        summary = evaluate_retrieval_dataset(dataset, k=2)
+        self.assertEqual(summary["mean_ndcg"], 1.0)
+
 
 class TestGenerationMetrics(unittest.TestCase):
 
@@ -120,6 +151,100 @@ class TestGenerationMetrics(unittest.TestCase):
         self.assertTrue(res["has_cot_structure"])
         self.assertGreater(res["score"], 0.5)
 
+    def test_context_relevance_heuristic(self):
+        query = "Which vector index does Drag use?"
+        contexts = [
+            "Drag stores embeddings in a FAISS vector index.",
+            "The office cafeteria opens at nine.",
+        ]
+        res = calculate_context_relevance(query, contexts)
+        self.assertEqual(res["method"], "heuristic")
+        self.assertEqual(res["relevance_flags"], [True, False])
+        self.assertEqual(res["score"], 0.5)
+        self.assertEqual(res["context_precision"], 1.0)
+
+    def test_average_precision_rewards_early_relevant_chunks(self):
+        self.assertEqual(average_precision([True, False, False]), 1.0)
+        self.assertAlmostEqual(average_precision([False, False, True]), 1 / 3, places=4)
+        self.assertEqual(average_precision([False, False]), 0.0)
+
+    def test_evaluate_generation_reports_triad(self):
+        res = evaluate_generation(
+            user_query="What is Drag?",
+            generated_answer="Drag is an enterprise RAG platform.",
+            retrieved_contexts=["Drag is an enterprise RAG platform for documents."],
+        )
+        triad = (
+            res["context_relevance"]["score"]
+            + res["faithfulness"]["score"]
+            + res["answer_relevancy"]["score"]
+        ) / 3
+        self.assertAlmostEqual(res["rag_triad_score"], round(triad, 4), places=4)
+        self.assertEqual(res["overall_score"], res["rag_triad_score"])
+
+
+class TestLLMJudgedMetrics(unittest.TestCase):
+
+    def test_llm_faithfulness_catches_paraphrase_and_hallucination(self):
+        judge = StubJudge({
+            "fact-checking": {
+                "claims": [
+                    {"claim": "Drag uses FAISS", "verdict": "supported", "reason": ""},
+                    {"claim": "Drag was founded in 1999", "verdict": "unsupported", "reason": "not in context"},
+                ]
+            }
+        })
+        res = calculate_faithfulness("Drag relies on FAISS. It was founded in 1999.", ["Drag uses FAISS."], judge)
+        self.assertEqual(res["method"], "llm")
+        self.assertEqual(res["score"], 0.5)
+        self.assertEqual(len(res["unsupported_claims"]), 1)
+
+    def test_llm_answer_relevancy_rubric_normalised(self):
+        judge = StubJudge({"addresses": {"score": 4, "noncommittal": False, "reason": "minor padding"}})
+        res = calculate_answer_relevancy("What is Drag?", "Drag is a RAG platform.", judge)
+        self.assertEqual(res["method"], "llm")
+        self.assertEqual(res["score"], 0.75)
+
+    def test_llm_answer_correctness_f1(self):
+        judge = StubJudge({
+            "REFERENCE": {
+                "true_positives": ["uses FAISS"],
+                "false_positives": [],
+                "false_negatives": ["uses BM25"],
+                "reason": "",
+            }
+        })
+        res = calculate_answer_correctness("Drag uses FAISS.", "Drag uses FAISS and BM25.", judge)
+        self.assertEqual(res["method"], "llm")
+        # F1 = 1 / (1 + 0.5 * 1)
+        self.assertAlmostEqual(res["score"], 0.6667, places=4)
+
+    def test_llm_context_relevance(self):
+        judge = StubJudge({
+            "retrieved CONTEXT chunks": {
+                "verdicts": [
+                    {"index": 0, "relevant": False},
+                    {"index": 1, "relevant": True},
+                ]
+            }
+        })
+        res = calculate_context_relevance("q about faiss", ["noise", "faiss details"], judge)
+        self.assertEqual(res["method"], "llm")
+        self.assertEqual(res["relevance_flags"], [False, True])
+        self.assertEqual(res["context_precision"], 0.5)
+
+    def test_falls_back_to_heuristic_when_judge_fails(self):
+        context = ["Drag is a RAG framework powered by FastAPI and React."]
+        answer = "Drag is a RAG framework using FastAPI and React."
+        res = calculate_faithfulness(answer, context, FailingJudge())
+        self.assertEqual(res["method"], "heuristic")
+        self.assertGreater(res["score"], 0.7)
+
+    def test_falls_back_on_malformed_judge_output(self):
+        judge = StubJudge({"addresses": {"score": "not a number"}})
+        res = calculate_answer_relevancy("What is Drag?", "Drag is a RAG platform.", judge)
+        self.assertEqual(res["method"], "heuristic")
+
 
 class TestRAGEvaluator(unittest.TestCase):
 
@@ -141,6 +266,44 @@ class TestRAGEvaluator(unittest.TestCase):
         self.assertEqual(summary["retrieval"]["hit_rate"], 1.0)
         self.assertEqual(summary["retrieval"]["mrr"], 1.0)
         self.assertGreater(summary["generation"]["mean_faithfulness"], 0.5)
+        self.assertEqual(summary["retrieval"]["mean_ndcg"], 1.0)
+        self.assertIsNotNone(summary["generation"]["mean_context_relevance"])
+        self.assertIsNone(summary["generation"]["mean_answer_correctness"])
+        self.assertEqual(summary["generation"]["llm_judged_ratio"], 0.0)
+
+
+class TestOnlineEvaluation(unittest.TestCase):
+
+    def test_record_is_logged_and_summarised(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "evals.jsonl")
+            contexts = [{"id": "c1", "text": "Drag stores embeddings in a FAISS index.", "source": "a.pdf"}]
+
+            online._run(
+                {
+                    "session_id": "s1",
+                    "query": "Where does Drag store embeddings?",
+                    "rewritten_query": None,
+                    "answer": "Drag stores embeddings in a FAISS index.",
+                    "contexts": contexts,
+                    "use_llm_judge": False,
+                },
+                log_path,
+            )
+
+            with open(log_path, encoding="utf-8") as f:
+                record = json.loads(f.readline())
+            self.assertEqual(record["retrieved"][0]["id"], "c1")
+            self.assertEqual(record["mode"], "heuristic")
+            self.assertIn("rag_triad_score", record["metrics"])
+
+            records = online.read_records(limit=10, log_path=log_path)
+            summary = online.summarize_records(records)
+            self.assertEqual(summary["total_evaluated"], 1)
+            self.assertIsNotNone(summary["mean_faithfulness"])
+
+    def test_summary_of_empty_log(self):
+        self.assertEqual(online.summarize_records([]), {"total_evaluated": 0})
 
 
 if __name__ == "__main__":

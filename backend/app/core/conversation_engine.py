@@ -21,6 +21,7 @@ from app.services.generator import (
 from app.agents.planner_agent import plan_next_steps
 from app.tools.tool_registry import get_tool
 from app.services.embeddings import embed_query, embed_texts
+from app.evaluation.online import submit_online_evaluation
 
 # ==========================================================
 # CONFIGURATION
@@ -422,6 +423,15 @@ class ConversationEngine:
             session_id=session_id,
             role="assistant",
             content=full_answer,
+        )
+
+        # Background scoring (context relevance, faithfulness, answer relevancy)
+        submit_online_evaluation(
+            session_id=session_id,
+            query=query,
+            rewritten_query=rewritten_query,
+            answer=full_answer,
+            contexts=trimmed_contexts,
         )
 
         yield {"type": "done"}

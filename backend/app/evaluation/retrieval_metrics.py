@@ -172,7 +172,8 @@ def evaluate_retrieval_dataset(
     for sample in dataset:
         retrieved = sample.get("retrieved_ids", [])
         relevant = sample.get("relevant_ids", [])
-        rel_scores = sample.get("relevance_scores", relevant)
+        # Fall back to binary relevance when graded scores are absent or explicitly None
+        rel_scores = sample.get("relevance_scores") or relevant
 
         total_p += calculate_precision(retrieved, relevant, k=k)
         total_r += calculate_recall(retrieved, relevant, k=k)
